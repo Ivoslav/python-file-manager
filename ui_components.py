@@ -1,7 +1,7 @@
 import flet as ft
 
 class CollapsibleDirectory(ft.Column):
-    def __init__(self, dir_name, content_controls, auto_expand=False):
+    def __init__(self, dir_name, content_controls, auto_expand=False, folder_checkbox=None):
         super().__init__()
         self.spacing = 0 
         self.dir_name = dir_name
@@ -24,8 +24,14 @@ class CollapsibleDirectory(ft.Column):
             padding=ft.padding.only(left=24) 
         )
 
+        # НОВО: Подреждаме елементите -> Бутон за сгъване, Чекбокс (ако има), Име
+        row_controls = [self.icon_btn]
+        if folder_checkbox:
+            row_controls.append(folder_checkbox)
+        row_controls.append(self.dir_label)
+
         self.controls = [
-            ft.Row([self.icon_btn, self.dir_label], spacing=0),
+            ft.Row(row_controls, spacing=0),
             self.files_container
         ]
 

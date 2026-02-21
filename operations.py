@@ -3,7 +3,6 @@ import shutil
 from datetime import datetime
 from utils import format_size, SYSTEM_PATHS, SYSTEM_EXTS, TreeNode
 
-# --- СКАНИРАНЕ ---
 def scan_directory(target_folder, start_date, end_date, valid_exts):
     matched_files = []
     has_system_files = False
@@ -11,6 +10,15 @@ def scan_directory(target_folder, start_date, end_date, valid_exts):
     root_node = TreeNode("root")
 
     for root, dirs, files in os.walk(target_folder):
+        dir_in_range = False
+        try:
+            # Проверяваме датата на самата папка (за да хващаме и празните)
+            dir_mtime = os.path.getmtime(root)
+            dir_date = datetime.fromtimestamp(dir_mtime)
+            if start_date <= dir_date <= end_date:
+                dir_in_range = True
+        except (PermissionError, FileNotFoundError): pass
+
         valid_files_in_dir = []
         for file in files:
             if valid_exts and not any(file.lower().endswith(ext) for ext in valid_exts): continue
@@ -30,7 +38,8 @@ def scan_directory(target_folder, start_date, end_date, valid_exts):
                     total_size_bytes += size
             except (PermissionError, FileNotFoundError): pass
 
-        if valid_files_in_dir:
+        # Добавяме в дървото, ако има файлове ИЛИ ако самата папка отговаря на датите
+        if valid_files_in_dir or dir_in_range:
             rel_path = os.path.relpath(root, target_folder)
             current_node = root_node
             if rel_path != '.':
@@ -43,11 +52,9 @@ def scan_directory(target_folder, start_date, end_date, valid_exts):
             
     return root_node, matched_files, total_size_bytes, has_system_files
 
-# --- ЕДИНИЧНИ ОПЕРАЦИИ ---
 def copy_single_file(src_path, dest_folder):
     final_dest = os.path.join(dest_folder, os.path.basename(src_path))
-    if os.path.abspath(src_path) == os.path.abspath(final_dest):
-        return False
+    if os.path.abspath(src_path) == os.path.abspath(final_dest): return False
     shutil.copy2(src_path, final_dest)
     return True
 
@@ -61,7 +68,6 @@ def delete_single_file(src_path):
     os.remove(src_path)
     return True
 
-# --- МАСОВИ ОПЕРАЦИИ (ВРЪЩАТ БРОЙ УСПЕШНИ И БРОЙ ГРЕШКИ) ---
 def batch_copy(files_list, dest_folder, target_folder):
     count, err_count = 0, 0
     for f_path in files_list:
@@ -100,12 +106,10 @@ def batch_delete(files_list):
         except Exception: err_count += 1
     return count, err_count, success_files
 
-# --- ЕКСПОРТ НА ОТЧЕТ ---
 def generate_export_report(file_path, matched_files, selected_files, target_folder):
     files_to_process = [f for f in matched_files if f[0] in selected_files] if selected_files else matched_files
     is_subset = len(selected_files) > 0
     target_str = "ИЗБРАНИ" if is_subset else "ВСИЧКИ"
-    
     with open(file_path, "w", encoding="utf-8") as f:
         f.write("=" * 60 + "\n")
         f.write(f"ОТЧЕТ ОТ СКАНИРАНЕ ({target_str}): {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -113,5 +117,4 @@ def generate_export_report(file_path, matched_files, selected_files, target_fold
         f.write(f"Общо включени файлове: {len(files_to_process)}\n\n")
         for f_path, f_size, f_date, is_sys in files_to_process:
             sys_tag = "[СИСТЕМЕН] " if is_sys else ""
-            date_str = f_date.strftime("%d/%m/%Y %H:%M")
-            f.write(f"{sys_tag}{f_path} | Размер: {format_size(f_size)} | Дата: {date_str}\n")
+            f.write(f"{sys_tag}{f_path} | Размер: {format_size(f_size)} | Дата: {f_date.strftime('%d/%m/%Y %H:%M')}\n")
