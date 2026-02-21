@@ -1,14 +1,17 @@
 import flet as ft
 import os
-import shutil
 from datetime import datetime, time, timedelta
 
 # ИМПОРТИРАМЕ НАШИТЕ СОБСТВЕНИ МОДУЛИ
-from utils import MAX_UI_FILES, SYSTEM_PATHS, SYSTEM_EXTS, TreeNode, natural_sort_key, format_size
+from utils import MAX_UI_FILES, natural_sort_key, format_size
 from ui_components import CollapsibleDirectory
+from operations import (
+    scan_directory, copy_single_file, cut_single_file, delete_single_file,
+    batch_copy, batch_cut, batch_delete, generate_export_report
+)
 
 def main(page: ft.Page):
-    page.title = "Търсачка за Файлове v10.0 (Modular Architecture)"
+    page.title = "Търсачка за Файлове v11.0 (MVC Architecture)"
     page.theme_mode = ft.ThemeMode.DARK  
     
     page.window.width = 1000 
@@ -28,10 +31,9 @@ def main(page: ft.Page):
     ui_count = [0]
     limit_reached = [False]
     active_icon_rows = [] 
+    single_action = {"type": None, "path": None, "row": None}
 
-    single_action = {"type": None, "path": None, "row": None, "size": 0}
-
-    # --- ПОМОЩНИ ФУНКЦИИ ЗА ИНТЕРФЕЙСА ---
+    # --- ПОМОЩНИ ФУНКЦИИ ЗА UI ---
     def update_dynamic_buttons():
         sel_count = len(selected_files)
         is_multi_select = sel_count > 0
@@ -47,13 +49,9 @@ def main(page: ft.Page):
             btn_export.text = "📄 Експорт Всички"
             btn_delete.text = "🗑️ Изтрий Всички"
             
-        for icon_row in active_icon_rows:
-            icon_row.visible = not is_multi_select
+        for icon_row in active_icon_rows: icon_row.visible = not is_multi_select
             
-        if len(matched_files) == 0:
-            btn_copy.disabled = btn_cut_bulk.disabled = btn_export.disabled = btn_delete.disabled = True
-        else:
-            btn_copy.disabled = btn_cut_bulk.disabled = btn_export.disabled = btn_delete.disabled = False
+        btn_copy.disabled = btn_cut_bulk.disabled = btn_export.disabled = btn_delete.disabled = len(matched_files) == 0
         page.update()
 
     def update_summary_text():
@@ -66,9 +64,7 @@ def main(page: ft.Page):
         else:
             lbl_summary.color = ft.colors.GREEN_ACCENT_200
             
-        if limit_reached[0]:
-            lbl_summary.value += f" | ⚡ Показани първите {MAX_UI_FILES}."
-            
+        if limit_reached[0]: lbl_summary.value += f" | ⚡ Показани първите {MAX_UI_FILES}."
         update_dynamic_buttons()
 
     def remove_file_from_state(path, row_control=None):
@@ -87,11 +83,8 @@ def main(page: ft.Page):
                 if remove_from_tree(child, target_path): return True
             return False
             
-        if global_root_node[0]:
-            remove_from_tree(global_root_node[0], path)
-
-        if row_control:
-            row_control.visible = False
+        if global_root_node[0]: remove_from_tree(global_root_node[0], path)
+        if row_control: row_control.visible = False
         update_summary_text()
 
     def show_snack(text, color):
@@ -117,92 +110,44 @@ def main(page: ft.Page):
 
     def on_copy_folder_selected(e: ft.FilePickerResultEvent):
         if e.path:
-            dest_folder = e.path
-            count = 0
-            err_count = 0
-            files_to_process = [f for f in matched_files if f[0] in selected_files] if selected_files else matched_files
-            for f_path, _, _, _ in files_to_process:
-                try:
-                    rel_path = os.path.relpath(f_path, target_folder[0])
-                    final_dest = os.path.join(dest_folder, rel_path)
-                    if os.path.abspath(f_path) == os.path.abspath(final_dest): continue
-                    os.makedirs(os.path.dirname(final_dest), exist_ok=True)
-                    shutil.copy2(f_path, final_dest)
-                    count += 1
-                except Exception: err_count += 1
+            files_to_process = [f[0] for f in matched_files if f[0] in selected_files] if selected_files else [f[0] for f in matched_files]
+            count, err_count = batch_copy(files_to_process, e.path, target_folder[0])
             msg = f"Успешно копирани {count} файла."
             if err_count > 0: msg += f" (Грешки: {err_count})"
             show_snack(msg, ft.colors.GREEN_400 if err_count == 0 else ft.colors.ORANGE_400)
 
     def on_cut_folder_selected(e: ft.FilePickerResultEvent):
         if e.path:
-            dest_folder = e.path
-            count = 0
-            err_count = 0
-            files_to_process = list([f for f in matched_files if f[0] in selected_files] if selected_files else matched_files)
-            for f_path, _, _, _ in files_to_process:
-                try:
-                    rel_path = os.path.relpath(f_path, target_folder[0])
-                    final_dest = os.path.join(dest_folder, rel_path)
-                    if os.path.abspath(f_path) == os.path.abspath(final_dest): continue
-                    os.makedirs(os.path.dirname(final_dest), exist_ok=True)
-                    shutil.copy2(f_path, final_dest)
-                    os.remove(f_path)
-                    count += 1
-                    remove_file_from_state(f_path, None) 
-                except Exception as ex: 
-                    print(f"Грешка: {ex}")
-                    err_count += 1
+            files_to_process = [f[0] for f in matched_files if f[0] in selected_files] if selected_files else [f[0] for f in matched_files]
+            count, err_count, success_files = batch_cut(files_to_process, e.path, target_folder[0])
+            
+            for f_path in success_files: remove_file_from_state(f_path, None) 
             msg = f"Успешно изрязани {count} файла."
-            color = ft.colors.GREEN_400
-            if err_count > 0: 
-                msg += f" Възникнаха {err_count} грешки!"
-                color = ft.colors.ORANGE_400
-            show_snack(msg, color)
+            if err_count > 0: msg += f" Възникнаха {err_count} грешки!"
+            show_snack(msg, ft.colors.GREEN_400 if err_count == 0 else ft.colors.ORANGE_400)
             redraw_tree() 
             page.update()
 
     def on_export_report_selected(e: ft.FilePickerResultEvent):
         if e.path:
             try:
-                files_to_process = [f for f in matched_files if f[0] in selected_files] if selected_files else matched_files
-                target_str = "ИЗБРАНИ" if selected_files else "ВСИЧКИ"
-                with open(e.path, "w", encoding="utf-8") as f:
-                    f.write("=" * 60 + "\n")
-                    f.write(f"ОТЧЕТ ОТ СКАНИРАНЕ ({target_str}): {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    f.write(f"Сканирана директория: {target_folder[0]}\n")
-                    f.write(f"Общо включени файлове: {len(files_to_process)}\n\n")
-                    for f_path, f_size, f_date, is_sys in files_to_process:
-                        sys_tag = "[СИСТЕМЕН] " if is_sys else ""
-                        date_str = f_date.strftime("%d/%m/%Y %H:%M")
-                        f.write(f"{sys_tag}{f_path} | Размер: {format_size(f_size)} | Дата: {date_str}\n")
+                generate_export_report(e.path, matched_files, selected_files, target_folder[0])
                 show_snack("Списъкът е запазен успешно.", ft.colors.GREEN_400)
             except Exception as ex: show_snack(f"Грешка: {ex}", ft.colors.RED_400)
 
     def on_single_action_selected(e: ft.FilePickerResultEvent):
         if e.path and single_action["path"]:
-            dest_folder = e.path
-            src_path = single_action["path"]
-            action = single_action["type"]
-            row_control = single_action["row"]
-            final_dest = os.path.join(dest_folder, os.path.basename(src_path))
-            
-            if os.path.abspath(src_path) == os.path.abspath(final_dest):
-                show_snack("Източникът и дестинацията са на едно и също място!", ft.colors.AMBER_400)
-                return
-
-            if action == "copy":
-                try:
-                    shutil.copy2(src_path, final_dest)
-                    show_snack(f"Копиран в: {dest_folder}", ft.colors.GREEN_400)
-                except Exception as ex: show_snack(f"Грешка: {ex}", ft.colors.RED_400)
-            elif action == "cut":
-                try:
-                    shutil.copy2(src_path, final_dest)
-                    os.remove(src_path)
-                    show_snack(f"Изрязан и преместен в: {dest_folder}", ft.colors.GREEN_400)
-                    remove_file_from_state(src_path, row_control)
-                except Exception as ex: show_snack(f"Грешка: {ex}", ft.colors.RED_400)
+            try:
+                if single_action["type"] == "copy":
+                    if copy_single_file(single_action["path"], e.path):
+                        show_snack(f"Копиран в: {e.path}", ft.colors.GREEN_400)
+                    else: show_snack("Източникът и дестинацията съвпадат!", ft.colors.AMBER_400)
+                elif single_action["type"] == "cut":
+                    if cut_single_file(single_action["path"], e.path):
+                        show_snack(f"Изрязан и преместен в: {e.path}", ft.colors.GREEN_400)
+                        remove_file_from_state(single_action["path"], single_action["row"])
+                    else: show_snack("Източникът и дестинацията съвпадат!", ft.colors.AMBER_400)
+            except Exception as ex: show_snack(f"Грешка: {ex}", ft.colors.RED_400)
 
     scan_picker = ft.FilePicker(on_result=on_scan_folder_selected)
     copy_picker = ft.FilePicker(on_result=on_copy_folder_selected)
@@ -221,10 +166,10 @@ def main(page: ft.Page):
         def execute_single_delete(e):
             dlg_single_delete.open = False
             try:
-                os.remove(path)
-                show_snack("Файлът беше изтрит завинаги.", ft.colors.RED_400)
-                remove_file_from_state(path, row_control)
-            except Exception as ex: show_snack(f"Грешка при триене: {ex}", ft.colors.RED_400)
+                if delete_single_file(path):
+                    show_snack("Файлът беше изтрит завинаги.", ft.colors.RED_400)
+                    remove_file_from_state(path, row_control)
+            except Exception as ex: show_snack(f"Грешка: {ex}", ft.colors.RED_400)
 
         dlg_single_delete.title = ft.Text("🚨 Системен файл!" if is_sys else "Потвърждение", color=ft.colors.RED_ACCENT_400 if is_sys else ft.colors.WHITE, weight=ft.FontWeight.BOLD)
         content_text = f"Изтриване на:\n{os.path.basename(path)}?"
@@ -239,7 +184,7 @@ def main(page: ft.Page):
         dlg_single_delete.open = True
         page.update()
 
-    # --- UI КОМПОНЕНТИ (ОСНОВЕН ЕКРАН) ---
+    # --- UI КОМПОНЕНТИ ---
     title = ft.Text("Управление на Файлове Pro", size=28, weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_400)
     btn_select_folder = ft.ElevatedButton("📂 Избери папка", on_click=lambda _: scan_picker.get_directory_path())
     lbl_folder = ft.Text("Избрана: Текуща (.)", color=ft.colors.GREY_400, italic=True)
@@ -264,8 +209,7 @@ def main(page: ft.Page):
     dd_sort = ft.Dropdown(
         value="Име",
         options=[ft.dropdown.Option("Име"), ft.dropdown.Option("Размер"), ft.dropdown.Option("Дата"), ft.dropdown.Option("Тип")],
-        width=130, height=45, text_size=13,
-        on_change=lambda _: redraw_tree(), border_color=ft.colors.BLUE_GREY_600
+        width=130, height=45, text_size=13, on_change=lambda _: redraw_tree(), border_color=ft.colors.BLUE_GREY_600
     )
     
     btn_sort_dir = ft.IconButton(icon=ft.icons.ARROW_UPWARD, tooltip="Посока", icon_color=ft.colors.BLUE_400, on_click=toggle_sort_dir)
@@ -276,10 +220,10 @@ def main(page: ft.Page):
 
     btn_scan = ft.ElevatedButton("🔍 Сканирай", width=150, bgcolor=ft.colors.BLUE_700, color=ft.colors.WHITE)
     
-    btn_copy = ft.ElevatedButton("📁 Копирай", disabled=True, color=ft.colors.WHITE, bgcolor=ft.colors.GREEN_700, on_click=lambda _: copy_picker.get_directory_path())
-    btn_cut_bulk = ft.ElevatedButton("✂️ Изрежи", disabled=True, color=ft.colors.WHITE, bgcolor=ft.colors.ORANGE_700, on_click=lambda _: cut_bulk_picker.get_directory_path())
-    btn_export = ft.ElevatedButton("📄 Експорт", disabled=True, color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_GREY_700, on_click=lambda _: export_picker.save_file(allowed_extensions=["txt", "csv"], file_name="Search_Report.txt"))
-    btn_delete = ft.ElevatedButton("🗑️ Изтрий", disabled=True, color=ft.colors.WHITE, bgcolor=ft.colors.RED_700)
+    btn_copy = ft.ElevatedButton("📁 Копирай Всички", disabled=True, color=ft.colors.WHITE, bgcolor=ft.colors.GREEN_700, on_click=lambda _: copy_picker.get_directory_path())
+    btn_cut_bulk = ft.ElevatedButton("✂️ Изрежи Всички", disabled=True, color=ft.colors.WHITE, bgcolor=ft.colors.ORANGE_700, on_click=lambda _: cut_bulk_picker.get_directory_path())
+    btn_export = ft.ElevatedButton("📄 Експорт Всички", disabled=True, color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_GREY_700, on_click=lambda _: export_picker.save_file(allowed_extensions=["txt", "csv"], file_name="Search_Report.txt"))
+    btn_delete = ft.ElevatedButton("🗑️ Изтрий Всички", disabled=True, color=ft.colors.WHITE, bgcolor=ft.colors.RED_700)
 
     def confirm_bulk_delete_dialog():
         def close_dlg(e):
@@ -287,17 +231,11 @@ def main(page: ft.Page):
             page.update()
         def do_delete(e):
             dlg.open = False
-            count = 0
-            err_count = 0
-            files_to_delete = list([f[0] for f in matched_files if f[0] in selected_files] if selected_files else [f[0] for f in matched_files])
+            files_to_delete = [f[0] for f in matched_files if f[0] in selected_files] if selected_files else [f[0] for f in matched_files]
+            count, err_count, success_files = batch_delete(files_to_delete)
             
-            for f_path in files_to_delete:
-                try: 
-                    os.remove(f_path)
-                    count += 1
-                    remove_file_from_state(f_path, None)
-                except Exception as ex: err_count += 1
-                
+            for f_path in success_files: remove_file_from_state(f_path, None)
+            
             msg = f"Успешно изтрити {count} файла."
             if err_count > 0: msg += f" (Грешки: {err_count})"
             show_snack(msg, ft.colors.RED_400 if err_count == 0 else ft.colors.ORANGE_400)
@@ -327,7 +265,6 @@ def main(page: ft.Page):
         
         row = ft.Row(spacing=5)
         date_str = f_date.strftime("%d/%m/%Y %H:%M")
-        tooltip_txt = f"Създаден/Променен: {date_str}"
         
         def on_checkbox_change(e):
             if e.control.value: selected_files.add(full_path)
@@ -335,7 +272,7 @@ def main(page: ft.Page):
             update_dynamic_buttons()
             
         cb = ft.Checkbox(value=full_path in selected_files, on_change=on_checkbox_change, fill_color=ft.colors.BLUE_400)
-        lbl = ft.Text(f"{icon} {file_name} ({format_size(size)})", color=file_color, font_family="monospace", size=13, expand=True, tooltip=tooltip_txt)
+        lbl = ft.Text(f"{icon} {file_name} ({format_size(size)})", color=file_color, font_family="monospace", size=13, expand=True, tooltip=f"Дата: {date_str}")
         
         btn_c = ft.IconButton(ft.icons.COPY, icon_size=16, width=25, height=25, padding=0, tooltip="Копирай", icon_color=ft.colors.BLUE_300, 
                               on_click=lambda e: (single_action.update({"type": "copy", "path": full_path, "row": row}), single_action_picker.get_directory_path()))
@@ -379,7 +316,7 @@ def main(page: ft.Page):
             for file_name, full_path, size, f_date, is_sys in node.files:
                 if ui_count[0] >= MAX_UI_FILES:
                     if not limit_reached[0]:
-                        elements.append(ft.Text(f"⚠️ ... и още {len(matched_files) - MAX_UI_FILES} файла скрити (вижте Експорт).", color=ft.colors.ORANGE_400, italic=True, weight=ft.FontWeight.BOLD))
+                        elements.append(ft.Text(f"⚠️ ... и още {len(matched_files) - MAX_UI_FILES} скрити.", color=ft.colors.ORANGE_400, italic=True))
                         limit_reached[0] = True
                     break
                 ui_count[0] += 1
@@ -406,7 +343,6 @@ def main(page: ft.Page):
 
         matched_files.clear()
         selected_files.clear() 
-        has_system_files[0] = False 
         
         btn_scan.disabled = True
         progress_ring.visible = True
@@ -414,38 +350,11 @@ def main(page: ft.Page):
         lbl_summary.color = ft.colors.GREEN_ACCENT_200
         page.update()
 
-        root_node = TreeNode("root")
-
-        for root, dirs, files in os.walk(target_folder[0]):
-            valid_files_in_dir = []
-            for file in files:
-                if valid_exts and not any(file.lower().endswith(ext) for ext in valid_exts): continue
-                full_path = os.path.join(root, file)
-                try:
-                    mtime = os.path.getmtime(full_path)
-                    file_date = datetime.fromtimestamp(mtime)
-                    if start_date <= file_date <= end_date:
-                        size = os.path.getsize(full_path)
-                        abs_path = os.path.abspath(full_path).lower()
-                        _, ext = os.path.splitext(file)
-                        is_sys = ext.lower() in SYSTEM_EXTS or any(abs_path.startswith(p) for p in SYSTEM_PATHS)
-                        if is_sys: has_system_files[0] = True
-                        
-                        valid_files_in_dir.append((file, full_path, size, file_date, is_sys))
-                        matched_files.append((full_path, size, file_date, is_sys))
-                except (PermissionError, FileNotFoundError): pass
-
-            if valid_files_in_dir:
-                rel_path = os.path.relpath(root, target_folder[0])
-                current_node = root_node
-                if rel_path != '.':
-                    parts = rel_path.split(os.sep)
-                    for part in parts:
-                        if part not in current_node.children:
-                            current_node.children[part] = TreeNode(part)
-                        current_node = current_node.children[part]
-                current_node.files.extend(valid_files_in_dir)
-
+        # МАГИЯТА: Викаме тежката логика от operations.py
+        root_node, files, _, has_sys = scan_directory(target_folder[0], start_date, end_date, valid_exts)
+        
+        matched_files.extend(files)
+        has_system_files[0] = has_sys
         global_root_node[0] = root_node
         auto_expand_all[0] = len(matched_files) < 30
         
@@ -466,14 +375,7 @@ def main(page: ft.Page):
         ft.Row([tf_start, tf_end, tf_ext], alignment=ft.MainAxisAlignment.START),
         ft.Divider(height=10, color=ft.colors.TRANSPARENT),
         
-        ft.Row([
-            btn_scan, 
-            progress_ring,
-            ft.Container(expand=True), 
-            ft.Text("Сортиране:", color=ft.colors.GREY_400),
-            dd_sort,
-            btn_sort_dir
-        ], alignment=ft.MainAxisAlignment.START),
+        ft.Row([btn_scan, progress_ring, ft.Container(expand=True), ft.Text("Сортиране:", color=ft.colors.GREY_400), dd_sort, btn_sort_dir], alignment=ft.MainAxisAlignment.START),
         
         results_container,
         lbl_summary,
