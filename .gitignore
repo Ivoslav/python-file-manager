@@ -1,0 +1,14 @@
+# Python files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+venv/
+env/
+
+# Flet / OS specific
+.flet/
+.DS_Store
+Search_Report.txt
