@@ -16,5 +16,5 @@
 
 1. Клонирайте хранилището:
    ```bash
-   git clone <URL_НА_ВАШЕТО_ХРАНИЛИЩЕ>
-   cd <ИМЕ_НА_ПАПКАТА>
+   git clone https://github.com/Ivoslav/python-file-manager.git
+   cd python-file-manager
