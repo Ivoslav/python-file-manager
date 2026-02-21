@@ -3,16 +3,19 @@ import shutil
 from datetime import datetime
 from utils import format_size, SYSTEM_PATHS, SYSTEM_EXTS, TreeNode
 
+# --- СКАНИРАНЕ ---
 def scan_directory(target_folder, start_date, end_date, valid_exts):
     matched_files = []
     has_system_files = False
     total_size_bytes = 0
     root_node = TreeNode("root")
 
+    # Нормализираме пътя, за да избегнем проблеми с relpath
+    target_folder = os.path.abspath(target_folder)
+
     for root, dirs, files in os.walk(target_folder):
         dir_in_range = False
         try:
-            # Проверяваме датата на самата папка (за да хващаме и празните)
             dir_mtime = os.path.getmtime(root)
             dir_date = datetime.fromtimestamp(dir_mtime)
             if start_date <= dir_date <= end_date:
@@ -38,7 +41,6 @@ def scan_directory(target_folder, start_date, end_date, valid_exts):
                     total_size_bytes += size
             except (PermissionError, FileNotFoundError): pass
 
-        # Добавяме в дървото, ако има файлове ИЛИ ако самата папка отговаря на датите
         if valid_files_in_dir or dir_in_range:
             rel_path = os.path.relpath(root, target_folder)
             current_node = root_node
@@ -52,45 +54,71 @@ def scan_directory(target_folder, start_date, end_date, valid_exts):
             
     return root_node, matched_files, total_size_bytes, has_system_files
 
+# --- ЕДИНИЧНИ ОПЕРАЦИИ ---
 def copy_single_file(src_path, dest_folder):
-    final_dest = os.path.join(dest_folder, os.path.basename(src_path))
-    if os.path.abspath(src_path) == os.path.abspath(final_dest): return False
-    shutil.copy2(src_path, final_dest)
-    return True
+    """ФИКС: Добавен try-except за защита от пълен диск и грешки"""
+    try:
+        final_dest = os.path.join(dest_folder, os.path.basename(src_path))
+        if os.path.abspath(src_path) == os.path.abspath(final_dest):
+            return False
+        shutil.copy2(src_path, final_dest)
+        return True
+    except Exception as e:
+        print(f"Грешка при копиране: {e}")
+        return False
 
 def cut_single_file(src_path, dest_folder):
+    """ФИКС: Използва защитената функция copy_single_file"""
     if copy_single_file(src_path, dest_folder):
-        os.remove(src_path)
-        return True
+        try:
+            os.remove(src_path)
+            return True
+        except Exception:
+            return False
     return False
 
 def delete_single_file(src_path):
     os.remove(src_path)
     return True
 
+# --- МАСОВИ ОПЕРАЦИИ ---
 def batch_copy(files_list, dest_folder, target_folder):
     count, err_count = 0, 0
+    # Нормализираме пътищата за коректен relpath
+    target_folder = os.path.abspath(target_folder)
+    dest_folder = os.path.abspath(dest_folder)
+
     for f_path in files_list:
         try:
-            rel_path = os.path.relpath(f_path, target_folder)
+            abs_f_path = os.path.abspath(f_path)
+            rel_path = os.path.relpath(abs_f_path, target_folder)
             final_dest = os.path.join(dest_folder, rel_path)
-            if os.path.abspath(f_path) == os.path.abspath(final_dest): continue
+            
+            if abs_f_path == os.path.abspath(final_dest): continue
+            
             os.makedirs(os.path.dirname(final_dest), exist_ok=True)
-            shutil.copy2(f_path, final_dest)
+            shutil.copy2(abs_f_path, final_dest)
             count += 1
-        except Exception: err_count += 1
+        except Exception as e:
+            print(f"Batch Copy Error: {e}")
+            err_count += 1
     return count, err_count
 
 def batch_cut(files_list, dest_folder, target_folder):
     count, err_count, success_files = 0, 0, []
+    target_folder = os.path.abspath(target_folder)
+    
     for f_path in files_list:
         try:
-            rel_path = os.path.relpath(f_path, target_folder)
+            abs_f_path = os.path.abspath(f_path)
+            rel_path = os.path.relpath(abs_f_path, target_folder)
             final_dest = os.path.join(dest_folder, rel_path)
-            if os.path.abspath(f_path) == os.path.abspath(final_dest): continue
+            
+            if abs_f_path == os.path.abspath(final_dest): continue
+            
             os.makedirs(os.path.dirname(final_dest), exist_ok=True)
-            shutil.copy2(f_path, final_dest)
-            os.remove(f_path)
+            shutil.copy2(abs_f_path, final_dest)
+            os.remove(abs_f_path)
             count += 1
             success_files.append(f_path)
         except Exception: err_count += 1
@@ -106,10 +134,12 @@ def batch_delete(files_list):
         except Exception: err_count += 1
     return count, err_count, success_files
 
+# --- ЕКСПОРТ ---
 def generate_export_report(file_path, matched_files, selected_files, target_folder):
     files_to_process = [f for f in matched_files if f[0] in selected_files] if selected_files else matched_files
     is_subset = len(selected_files) > 0
     target_str = "ИЗБРАНИ" if is_subset else "ВСИЧКИ"
+    
     with open(file_path, "w", encoding="utf-8") as f:
         f.write("=" * 60 + "\n")
         f.write(f"ОТЧЕТ ОТ СКАНИРАНЕ ({target_str}): {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -117,4 +147,5 @@ def generate_export_report(file_path, matched_files, selected_files, target_fold
         f.write(f"Общо включени файлове: {len(files_to_process)}\n\n")
         for f_path, f_size, f_date, is_sys in files_to_process:
             sys_tag = "[СИСТЕМЕН] " if is_sys else ""
-            f.write(f"{sys_tag}{f_path} | Размер: {format_size(f_size)} | Дата: {f_date.strftime('%d/%m/%Y %H:%M')}\n")
+            date_str = f_date.strftime("%d/%m/%Y %H:%M")
+            f.write(f"{sys_tag}{f_path} | Размер: {format_size(f_size)} | Дата: {date_str}\n")
