@@ -218,10 +218,15 @@ def test_very_deep_nesting(tmp_path):
     count, err = batch_copy([str(deep_file)], str(dest), str(tmp_path))
     assert count == 1
     assert err == 0
-    # Проверяваме дали цялата верига от папки е пресъздадена
-    expected_path = dest / "level_0" / "level_1" / "level_2" / "level_9" / "deep.txt"
+    
+    # ФИКС: Генерираме правилния очакван път с всичките 10 нива
+    expected_path = dest
+    for i in range(10):
+        expected_path = expected_path / f"level_{i}"
+    expected_path = expected_path / "deep.txt"
+    
     assert expected_path.exists()
-
+    
 # --- ТЕСТ 20: ПРАЗНИ СПИСЪЦИ (Edge Case) ---
 def test_batch_operations_empty_list():
     """Какво става, ако потребителят натисне 'Копирай', без да е избрал нищо?"""
