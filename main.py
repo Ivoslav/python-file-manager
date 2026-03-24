@@ -11,11 +11,12 @@ from operations import (
     batch_copy, batch_cut, batch_delete, generate_export_report
 )
 
-# --- ПРЕМИУМ ПАЛИТРА (Minimalist Dark) ---
+# --- ПРЕМИУМ ПАЛИТРА (Ultra Minimalist Dark) ---
 BG_MAIN = "#0B0C10"         
 BG_SIDEBAR = "#12141A"      
 BG_CONTAINER = "#181A21"    
 BG_HOVER = "#232630"        
+BG_SELECTED = "#162032"     # НОВО: Мек тъмносин фон за маркираните редове
 BORDER_COLOR = "#252833"    
 TEXT_PRIMARY = "#F8FAFC"    
 TEXT_SECONDARY = "#94A3B8"  
@@ -26,7 +27,7 @@ BTN_EXPORT = "#64748B"
 BTN_DELETE = "#EF4444"      
 
 def main(page: ft.Page):
-    page.title = "Smart Manager v18.0 (Ultimate UX)"
+    page.title = "Smart Manager v19.0 (Ultra Premium UI)"
     page.theme_mode = ft.ThemeMode.DARK  
     page.bgcolor = BG_MAIN
     
@@ -76,7 +77,6 @@ def main(page: ft.Page):
     )
     btn_sort_dir = ft.IconButton(icon=ft.icons.ARROW_UPWARD, tooltip="Посока", icon_color=TEXT_SECONDARY, icon_size=18)
 
-    # --- НОВО: Приветстващ екран (Empty State) ---
     empty_state = ft.Container(
         content=ft.Column([
             ft.Icon(ft.icons.FOLDER_SPECIAL_OUTLINED, size=70, color=BORDER_COLOR),
@@ -88,7 +88,7 @@ def main(page: ft.Page):
     )
 
     results_list = ft.ListView(expand=True, spacing=5, auto_scroll=False)
-    results_list.controls = [empty_state] # Зареждаме празния екран при старт
+    results_list.controls = [empty_state] 
     
     results_container = ft.Container(content=results_list, expand=True, border=ft.border.all(1, BORDER_COLOR), bgcolor=BG_CONTAINER, padding=15, border_radius=12)
     lbl_summary = ft.Text("Готовност за сканиране...", color=TEXT_SECONDARY, size=13)
@@ -112,14 +112,13 @@ def main(page: ft.Page):
     # ==============================================================
     # 2. ПОМОЩНИ ФУНКЦИИ И ЛОГИКА
     # ==============================================================
-    # --- НОВО: Функция за отваряне на файл в ОС ---
     def open_system_file(filepath):
         try:
             if platform.system() == 'Windows':
                 os.startfile(filepath)
-            elif platform.system() == 'Darwin': # macOS
+            elif platform.system() == 'Darwin': 
                 subprocess.call(('open', filepath))
-            else: # Linux
+            else: 
                 subprocess.call(('xdg-open', filepath))
         except Exception as e:
             show_snack(f"Грешка при отваряне: Не може да се стартира файла.", BTN_DELETE)
@@ -330,7 +329,6 @@ def main(page: ft.Page):
     def create_file_row(file_name, full_path, size, f_date, is_sys):
         file_color = "#FCA5A5" if is_sys else TEXT_PRIMARY
         
-        # --- НОВО: УМНИ ИКОНКИ (Smart File Icons) ---
         ext = os.path.splitext(file_name)[1].lower()
         if is_sys: icon = "⚙️"
         elif ext in ['.jpg', '.jpeg', '.png', '.gif', '.svg']: icon = "🖼️"
@@ -346,12 +344,35 @@ def main(page: ft.Page):
         row = ft.Row(spacing=10, alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
         date_str = f_date.strftime("%d/%m/%Y")
         
-        def on_checkbox_change(e):
-            if e.control.value: selected_files.add(full_path)
-            else: selected_files.discard(full_path)
+        is_selected = full_path in selected_files
+        
+        # --- НОВО: Кръгъл Custom Toggle бутон ---
+        def on_toggle_select(e):
+            if full_path in selected_files:
+                selected_files.discard(full_path)
+            else:
+                selected_files.add(full_path)
+                
             update_dynamic_buttons()
             
-        cb = ft.Checkbox(value=full_path in selected_files, on_change=on_checkbox_change, fill_color=ACCENT_BLUE)
+            is_sel = full_path in selected_files
+            # Сменяме иконата на плътна синя отметка или празен кръг
+            btn_select.icon = ft.icons.CHECK_CIRCLE if is_sel else ft.icons.CIRCLE_OUTLINED
+            btn_select.icon_color = ACCENT_BLUE if is_sel else BORDER_COLOR
+            # Осветяваме реда в тъмносиньо, ако е избран
+            row_container.bgcolor = BG_SELECTED if is_sel else ft.colors.TRANSPARENT
+            
+            btn_select.update()
+            row_container.update()
+            
+        btn_select = ft.IconButton(
+            icon=ft.icons.CHECK_CIRCLE if is_selected else ft.icons.CIRCLE_OUTLINED,
+            icon_color=ACCENT_BLUE if is_selected else BORDER_COLOR,
+            icon_size=18, width=28, height=28, padding=0,
+            on_click=on_toggle_select,
+            tooltip="Маркирай"
+        )
+        
         lbl_name = ft.Text(f"{icon} {file_name}", color=file_color, size=13, expand=True, tooltip=full_path, no_wrap=True)
         lbl_size = ft.Text(format_size(size), color=TEXT_SECONDARY, size=12, width=70, text_align=ft.TextAlign.RIGHT)
         lbl_date = ft.Text(date_str, color=TEXT_SECONDARY, size=12, width=80, text_align=ft.TextAlign.RIGHT)
@@ -360,14 +381,32 @@ def main(page: ft.Page):
         active_icon_rows.append(icons_group) 
         
         def on_hover(e):
+            is_hover = e.data == "true"
+            is_sel = full_path in selected_files
+            
             if len(selected_files) == 0:  
-                icons_group.visible = (e.data == "true")
-            row_container.bgcolor = BG_HOVER if e.data == "true" else ft.colors.TRANSPARENT
+                icons_group.visible = is_hover
+                
+            # Hover логика, съобразена с това дали е избран файлът
+            if is_sel:
+                row_container.bgcolor = BG_SELECTED 
+                btn_select.icon_color = ACCENT_BLUE
+            else:
+                row_container.bgcolor = BG_HOVER if is_hover else ft.colors.TRANSPARENT
+                btn_select.icon_color = TEXT_SECONDARY if is_hover else BORDER_COLOR
+                
             row_container.update()
+            btn_select.update()
 
-        row_container = ft.Container(content=row, on_hover=on_hover, padding=ft.padding.only(left=5, right=5, top=2, bottom=2), border_radius=6, animate=ft.animation.Animation(150, "easeOut"))
+        row_container = ft.Container(
+            content=row, 
+            on_hover=on_hover, 
+            padding=ft.padding.only(left=5, right=5, top=2, bottom=2), 
+            border_radius=6, 
+            bgcolor=BG_SELECTED if is_selected else ft.colors.TRANSPARENT,
+            animate=ft.animation.Animation(150, "easeOut")
+        )
 
-        # --- НОВО: Бутон за Отваряне (Open File) ---
         btn_open = ft.IconButton(ft.icons.OPEN_IN_NEW, icon_size=15, width=26, height=26, padding=0, tooltip="Отвори файла", icon_color=TEXT_PRIMARY, 
                                  on_click=lambda e: open_system_file(full_path))
         btn_c = ft.IconButton(ft.icons.COPY, icon_size=15, width=26, height=26, padding=0, tooltip="Копирай", icon_color=ACCENT_BLUE, 
@@ -377,9 +416,8 @@ def main(page: ft.Page):
         btn_del = ft.IconButton(ft.icons.DELETE, icon_size=15, width=26, height=26, padding=0, tooltip="Изтрий", icon_color=BTN_DELETE, 
                                 on_click=lambda e: prompt_single_delete(full_path, row_container, is_sys))
         
-        # Добавихме btn_open най-отпред
         icons_group.controls = [btn_open, btn_c, btn_cut, btn_del]
-        row.controls = [cb, lbl_name, lbl_size, lbl_date, icons_group]
+        row.controls = [btn_select, lbl_name, lbl_size, lbl_date, icons_group]
         
         return row_container
 
@@ -419,15 +457,25 @@ def main(page: ft.Page):
                 paths_in_folder = get_all_files(child_node)
                 all_selected = all(p in selected_files for p in paths_in_folder) if paths_in_folder else False
                 
-                def on_folder_cb_change(e, paths=paths_in_folder):
-                    if e.control.value:
-                        for p in paths: selected_files.add(p)
-                    else:
-                        for p in paths: selected_files.discard(p)
-                    update_dynamic_buttons()
-                    redraw_tree() 
+                # --- НОВО: Кръгъл бутон за Папките ---
+                def make_folder_toggle(paths, is_sel):
+                    def toggle(e):
+                        if is_sel:
+                            for p in paths: selected_files.discard(p)
+                        else:
+                            for p in paths: selected_files.add(p)
+                        update_dynamic_buttons()
+                        redraw_tree() 
+                    return toggle
                     
-                folder_cb = ft.Checkbox(value=all_selected, on_change=on_folder_cb_change, fill_color=ACCENT_BLUE) if paths_in_folder else None
+                folder_cb = ft.IconButton(
+                    icon=ft.icons.CHECK_CIRCLE if all_selected else ft.icons.CIRCLE_OUTLINED,
+                    icon_color=ACCENT_BLUE if all_selected else BORDER_COLOR,
+                    icon_size=18, width=28, height=28, padding=0,
+                    on_click=make_folder_toggle(paths_in_folder, all_selected),
+                    tooltip="Маркирай всичко вътре"
+                ) if paths_in_folder else None
+                
                 is_expanded = child_path in expanded_dirs
                 
                 def make_toggle(cp):
@@ -455,7 +503,6 @@ def main(page: ft.Page):
                 elements.append(create_file_row(file_name, full_path, size, f_date, is_sys))
             return elements
 
-        # Ако няма файлове, показваме празно съобщение, иначе рисуваме дървото
         if len(matched_files) == 0:
             results_list.controls = [empty_state]
         else:
@@ -533,7 +580,6 @@ def main(page: ft.Page):
         ft.TextButton("Година", on_click=lambda _: set_quick_date(0, year_start=True), style=ft.ButtonStyle(color=ACCENT_BLUE)),
     ], wrap=True, width=260, spacing=0)
 
-    # --- СКРИТИ ФИЛТРИ (ExpansionTile) ---
     advanced_filters = ft.ExpansionTile(
         title=ft.Text("Допълнителни филтри", color=TEXT_PRIMARY, size=13, weight="bold"),
         icon_color=ACCENT_BLUE,
@@ -547,7 +593,6 @@ def main(page: ft.Page):
         ]
     )
 
-    # --- ПЛАВАЩА ЛЕНТА (Toolbar) ---
     toolbar = ft.Container(
         content=ft.Row([btn_copy, btn_cut_bulk, btn_export, btn_delete], alignment=ft.MainAxisAlignment.CENTER, spacing=15),
         bgcolor=BG_SIDEBAR,
