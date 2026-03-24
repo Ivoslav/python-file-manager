@@ -22,7 +22,7 @@ BTN_EXPORT = "#475569"
 BTN_DELETE = "#DC2626"      
 
 def main(page: ft.Page):
-    page.title = "Търсачка за Файлове v16.0 (UX & Hover Edition)"
+    page.title = "Търсачка за Файлове"
     page.theme_mode = ft.ThemeMode.DARK  
     page.bgcolor = BG_MAIN
     
@@ -289,7 +289,7 @@ def main(page: ft.Page):
             content=ft.Text(f"Ще изтриете {target_count} файла!{' (СИСТЕМНИ ФАЙЛОВЕ ОТКРИТИ)' if sys_in_target else ''}", color=TEXT_PRIMARY),
             actions=[
                 ft.TextButton("Отказ", on_click=close_dlg, style=ft.ButtonStyle(color=TEXT_SECONDARY)), 
-                ft.TextButton(f"Да, изтрий {target_count}", on_click=do_delete, style=ft.ButtonStyle(color="#EF4444", bgcolor="#450a0a"))
+                ft.TextButton(f"Да, изтрий", on_click=do_delete, style=ft.ButtonStyle(color="#EF4444", bgcolor="#450a0a"))
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )

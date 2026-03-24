@@ -1,7 +1,6 @@
 import flet as ft
 
 class CollapsibleDirectory(ft.Column):
-    # Добавихме on_toggle_expand
     def __init__(self, dir_name, content_controls, auto_expand=False, folder_checkbox=None, on_toggle_expand=None):
         super().__init__()
         self.spacing = 0 
@@ -41,7 +40,6 @@ class CollapsibleDirectory(ft.Column):
         self.files_container.visible = self.is_expanded
         self.icon_btn.icon = ft.icons.KEYBOARD_ARROW_DOWN if self.is_expanded else ft.icons.KEYBOARD_ARROW_RIGHT
         
-        # Информираме главната програма, че сме променили състоянието си!
         if self.on_toggle_expand:
             self.on_toggle_expand(self.is_expanded)
             

@@ -1,10 +1,9 @@
 import os
 import shutil
-import logging # НОВО
+import logging
 from datetime import datetime
 from utils import format_size, SYSTEM_PATHS, SYSTEM_EXTS, TreeNode
 
-# Настройваме логъра да записва в app.log
 logging.basicConfig(
     filename='app.log', 
     level=logging.INFO, 
@@ -12,14 +11,12 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-# --- СКАНИРАНЕ ---
 def scan_directory(target_folder, start_date, end_date, valid_exts):
     matched_files = []
     has_system_files = False
     total_size_bytes = 0
     root_node = TreeNode("root")
 
-    # Нормализираме пътя и махаме наклонената черта открая
     target_folder = os.path.normpath(os.path.abspath(target_folder))
 
     for root, dirs, files in os.walk(target_folder):
@@ -63,7 +60,6 @@ def scan_directory(target_folder, start_date, end_date, valid_exts):
             
     return root_node, matched_files, total_size_bytes, has_system_files
 
-# --- ЕДИНИЧНИ ОПЕРАЦИИ ---
 def copy_single_file(src_path, dest_folder):
     try:
         src_path = os.path.normpath(os.path.abspath(src_path))
@@ -90,23 +86,21 @@ def cut_single_file(src_path, dest_folder):
 def delete_single_file(src_path):
     try:
         os.remove(clean_path(src_path))
-        logging.info(f"Успешно изтрит файл: {src_path}") # ЗАПИСВАМЕ В ЛОГА
+        logging.info(f"Успешно изтрит файл: {src_path}")
         return True
     except Exception as e:
-        logging.error(f"Грешка при изтриване на {src_path}: {e}") # ЗАПИСВАМЕ ГРЕШКАТА
+        logging.error(f"Грешка при изтриване на {src_path}: {e}") 
         return False
 
 # --- МАСОВИ ОПЕРАЦИИ ---
 def batch_copy(files_list, dest_folder, target_folder):
     count, err_count = 0, 0
-    # КРИТИЧЕН ФИКС: Нормализираме стартовата папка и дестинацията
     target_folder = os.path.normpath(os.path.abspath(target_folder))
     dest_folder = os.path.normpath(os.path.abspath(dest_folder))
 
     for f_path in files_list:
         try:
             abs_f_path = os.path.normpath(os.path.abspath(f_path))
-            # relpath вече ще работи перфектно върху чисти абсолютни пътища
             rel_path = os.path.relpath(abs_f_path, target_folder)
             final_dest = os.path.join(dest_folder, rel_path)
             
@@ -151,7 +145,6 @@ def batch_delete(files_list):
         except Exception: err_count += 1
     return count, err_count, success_files
 
-# --- ЕКСПОРТ ---
 def generate_export_report(file_path, matched_files, selected_files, target_folder):
     files_to_process = [f for f in matched_files if f[0] in selected_files] if selected_files else matched_files
     is_subset = len(selected_files) > 0
