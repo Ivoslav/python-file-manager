@@ -17,12 +17,18 @@ class CollapsibleDirectory(ft.Column):
             padding=0
         )
         
-        self.dir_label = ft.Text(f"📂 {self.dir_name}", weight=ft.FontWeight.BOLD, color=ft.colors.WHITE)
+        self.dir_label = ft.Text(f"📂 {self.dir_name}", weight=ft.FontWeight.BOLD, color="#F8FAFC")
         
+        # --- МАГИЯТА ЗА ОРИЕНТАЦИЯ: Вертикалните водещи линии (Tree Lines) ---
         self.files_container = ft.Container(
             content=ft.Column(controls=content_controls, spacing=0),
             visible=self.is_expanded,
-            padding=ft.padding.only(left=24) 
+            # left=18 отдалечава файловете от линията
+            padding=ft.padding.only(left=18), 
+            # left=14 бута самата линия да се падне точно под центъра на стрелката
+            margin=ft.padding.only(left=14),  
+            # Чертаем вертикалната линия отляво!
+            border=ft.border.only(left=ft.border.BorderSide(1, "#252833")) 
         )
 
         row_controls = [self.icon_btn]
@@ -30,10 +36,24 @@ class CollapsibleDirectory(ft.Column):
             row_controls.append(folder_checkbox)
         row_controls.append(self.dir_label)
 
+        # Добавяме лек Hover ефект и на самата папка, за да се вижда ясно коя е
+        folder_row = ft.Container(
+            content=ft.Row(row_controls, spacing=0),
+            padding=ft.padding.only(top=2, bottom=2, right=5),
+            border_radius=6,
+            on_hover=lambda e: self.on_folder_hover(e, folder_row),
+            animate=ft.animation.Animation(150, "easeOut")
+        )
+
         self.controls = [
-            ft.Row(row_controls, spacing=0),
+            folder_row,
             self.files_container
         ]
+
+    def on_folder_hover(self, e, container):
+        # Същият мек цвят като при файловете
+        container.bgcolor = "#232630" if e.data == "true" else ft.colors.TRANSPARENT
+        container.update()
 
     def toggle_expand(self, e):
         self.is_expanded = not self.is_expanded

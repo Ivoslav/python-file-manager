@@ -16,7 +16,7 @@ BG_MAIN = "#0B0C10"
 BG_SIDEBAR = "#12141A"      
 BG_CONTAINER = "#181A21"    
 BG_HOVER = "#232630"        
-BG_SELECTED = "#162032"     # НОВО: Мек тъмносин фон за маркираните редове
+BG_SELECTED = "#162032"     
 BORDER_COLOR = "#252833"    
 TEXT_PRIMARY = "#F8FAFC"    
 TEXT_SECONDARY = "#94A3B8"  
@@ -27,7 +27,7 @@ BTN_EXPORT = "#64748B"
 BTN_DELETE = "#EF4444"      
 
 def main(page: ft.Page):
-    page.title = "Smart Manager v19.0 (Ultra Premium UI)"
+    page.title = "Smart Manager v20.0 (Live Search)"
     page.theme_mode = ft.ThemeMode.DARK  
     page.bgcolor = BG_MAIN
     
@@ -70,10 +70,20 @@ def main(page: ft.Page):
     )
     progress_ring = ft.ProgressRing(width=24, height=24, stroke_width=3, visible=False, color=ACCENT_BLUE)
 
+    # НОВО: Лента за бързо търсене (Live Search)
+    tf_search = ft.TextField(
+        hint_text="Търси файл...", 
+        prefix_icon=ft.icons.SEARCH,
+        width=200, height=40, text_size=13, 
+        border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, 
+        content_padding=10,
+        on_change=lambda _: redraw_tree() # Преначертава дървото при всяка буква
+    )
+
     dd_sort = ft.Dropdown(
         value="Име",
         options=[ft.dropdown.Option("Име"), ft.dropdown.Option("Размер"), ft.dropdown.Option("Дата"), ft.dropdown.Option("Тип")],
-        width=120, height=40, text_size=13, border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, content_padding=10
+        width=110, height=40, text_size=13, border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, content_padding=10
     )
     btn_sort_dir = ft.IconButton(icon=ft.icons.ARROW_UPWARD, tooltip="Посока", icon_color=TEXT_SECONDARY, icon_size=18)
 
@@ -114,14 +124,16 @@ def main(page: ft.Page):
     # ==============================================================
     def open_system_file(filepath):
         try:
-            if platform.system() == 'Windows':
-                os.startfile(filepath)
-            elif platform.system() == 'Darwin': 
-                subprocess.call(('open', filepath))
-            else: 
-                subprocess.call(('xdg-open', filepath))
+            if platform.system() == 'Windows': os.startfile(filepath)
+            elif platform.system() == 'Darwin': subprocess.call(('open', filepath))
+            else: subprocess.call(('xdg-open', filepath))
         except Exception as e:
-            show_snack(f"Грешка при отваряне: Не може да се стартира файла.", BTN_DELETE)
+            show_snack("Грешка при отваряне: Не може да се стартира файла.", BTN_DELETE)
+
+    # НОВО: Функция за копиране в клипборда
+    def copy_to_clipboard(filepath):
+        page.set_clipboard(filepath)
+        show_snack(f"Копирано: {os.path.basename(filepath)}", BTN_COPY)
 
     def update_dynamic_buttons():
         sel_count = len(selected_files)
@@ -138,8 +150,7 @@ def main(page: ft.Page):
             btn_export.text = "📄 Експорт Всички"
             btn_delete.text = "🗑️ Изтрий Всички"
             
-        for icon_row in active_icon_rows: 
-            icon_row.visible = False
+        for icon_row in active_icon_rows: icon_row.visible = False
             
         is_empty = len(matched_files) == 0
         btn_copy.disabled = is_empty
@@ -346,22 +357,14 @@ def main(page: ft.Page):
         
         is_selected = full_path in selected_files
         
-        # --- НОВО: Кръгъл Custom Toggle бутон ---
         def on_toggle_select(e):
-            if full_path in selected_files:
-                selected_files.discard(full_path)
-            else:
-                selected_files.add(full_path)
-                
+            if full_path in selected_files: selected_files.discard(full_path)
+            else: selected_files.add(full_path)
             update_dynamic_buttons()
-            
             is_sel = full_path in selected_files
-            # Сменяме иконата на плътна синя отметка или празен кръг
             btn_select.icon = ft.icons.CHECK_CIRCLE if is_sel else ft.icons.CIRCLE_OUTLINED
             btn_select.icon_color = ACCENT_BLUE if is_sel else BORDER_COLOR
-            # Осветяваме реда в тъмносиньо, ако е избран
             row_container.bgcolor = BG_SELECTED if is_sel else ft.colors.TRANSPARENT
-            
             btn_select.update()
             row_container.update()
             
@@ -373,7 +376,13 @@ def main(page: ft.Page):
             tooltip="Маркирай"
         )
         
-        lbl_name = ft.Text(f"{icon} {file_name}", color=file_color, size=13, expand=True, tooltip=full_path, no_wrap=True)
+        # НОВО: Правим името кликаемо, за да копираме пътя
+        lbl_name = ft.Container(
+            content=ft.Text(f"{icon} {file_name}", color=file_color, size=13, tooltip="Кликни за копиране на пътя", no_wrap=True),
+            expand=True,
+            on_click=lambda _: copy_to_clipboard(full_path)
+        )
+        
         lbl_size = ft.Text(format_size(size), color=TEXT_SECONDARY, size=12, width=70, text_align=ft.TextAlign.RIGHT)
         lbl_date = ft.Text(date_str, color=TEXT_SECONDARY, size=12, width=80, text_align=ft.TextAlign.RIGHT)
         
@@ -383,27 +392,20 @@ def main(page: ft.Page):
         def on_hover(e):
             is_hover = e.data == "true"
             is_sel = full_path in selected_files
-            
             if len(selected_files) == 0:  
                 icons_group.visible = is_hover
-                
-            # Hover логика, съобразена с това дали е избран файлът
             if is_sel:
                 row_container.bgcolor = BG_SELECTED 
                 btn_select.icon_color = ACCENT_BLUE
             else:
                 row_container.bgcolor = BG_HOVER if is_hover else ft.colors.TRANSPARENT
                 btn_select.icon_color = TEXT_SECONDARY if is_hover else BORDER_COLOR
-                
             row_container.update()
             btn_select.update()
 
         row_container = ft.Container(
-            content=row, 
-            on_hover=on_hover, 
-            padding=ft.padding.only(left=5, right=5, top=2, bottom=2), 
-            border_radius=6, 
-            bgcolor=BG_SELECTED if is_selected else ft.colors.TRANSPARENT,
+            content=row, on_hover=on_hover, padding=ft.padding.only(left=5, right=5, top=2, bottom=2), 
+            border_radius=6, bgcolor=BG_SELECTED if is_selected else ft.colors.TRANSPARENT,
             animate=ft.animation.Animation(150, "easeOut")
         )
 
@@ -428,6 +430,9 @@ def main(page: ft.Page):
         ui_count[0] = 0
         limit_reached[0] = False
         
+        # Взимаме стойността от търсачката (Live Search)
+        search_query = tf_search.value.lower().strip() if tf_search.value else ""
+        
         def sort_files(files_list):
             rev = not sort_asc[0]
             if dd_sort.value == "Размер": files_list.sort(key=lambda x: (x[2], natural_sort_key(x[0])), reverse=rev)
@@ -446,6 +451,10 @@ def main(page: ft.Page):
                 
                 child_ui_elements = build_ui_tree(child_node, child_path)
                 
+                # НОВО: Ако сме въвели търсене и папката няма съвпадащи файлове или подпапки, я крием!
+                if search_query and not child_ui_elements and search_query not in child_name.lower():
+                    continue
+                
                 if not child_ui_elements:
                     child_ui_elements.append(ft.Text(" (Празна)", color=TEXT_SECONDARY, italic=True, size=11))
                 
@@ -457,7 +466,6 @@ def main(page: ft.Page):
                 paths_in_folder = get_all_files(child_node)
                 all_selected = all(p in selected_files for p in paths_in_folder) if paths_in_folder else False
                 
-                # --- НОВО: Кръгъл бутон за Папките ---
                 def make_folder_toggle(paths, is_sel):
                     def toggle(e):
                         if is_sel:
@@ -476,7 +484,8 @@ def main(page: ft.Page):
                     tooltip="Маркирай всичко вътре"
                 ) if paths_in_folder else None
                 
-                is_expanded = child_path in expanded_dirs
+                # Ако търсим нещо, разгъваме принудително всички папки, за да видим резултата веднага
+                is_expanded = True if search_query else (child_path in expanded_dirs)
                 
                 def make_toggle(cp):
                     def toggle(expanded):
@@ -494,6 +503,10 @@ def main(page: ft.Page):
                     
             sort_files(node.files)
             for file_name, full_path, size, f_date, is_sys in node.files:
+                # НОВО: Филтриране на самите файлове спрямо търсачката
+                if search_query and search_query not in file_name.lower():
+                    continue
+
                 if ui_count[0] >= MAX_UI_FILES:
                     if not limit_reached[0]:
                         elements.append(ft.Text(f"⚠️ Още {len(matched_files) - MAX_UI_FILES} скрити файла.", color="#F59E0B", italic=True, size=12))
@@ -506,7 +519,12 @@ def main(page: ft.Page):
         if len(matched_files) == 0:
             results_list.controls = [empty_state]
         else:
-            results_list.controls = build_ui_tree(global_root_node[0])
+            rendered_tree = build_ui_tree(global_root_node[0])
+            # Ако при търсенето не е намерено нищо, показваме празен екран
+            if not rendered_tree and search_query:
+                results_list.controls = [ft.Container(ft.Text(f'Няма намерени файлове за "{search_query}"', color=TEXT_SECONDARY, italic=True), padding=20)]
+            else:
+                results_list.controls = rendered_tree
             
         update_summary_text()
 
@@ -527,6 +545,7 @@ def main(page: ft.Page):
         matched_files.clear()
         selected_files.clear() 
         expanded_dirs.clear() 
+        tf_search.value = "" # Изчистваме търсачката при ново сканиране
         
         btn_scan.disabled = True
         progress_ring.visible = True
@@ -629,8 +648,9 @@ def main(page: ft.Page):
         padding=ft.padding.only(left=25, top=20, right=25, bottom=20),
         content=ft.Column([
             ft.Row([
-                ft.Text("Резултати от сканирането", size=22, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                ft.Text("Резултати", size=22, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
                 ft.Container(expand=True), 
+                tf_search, # НОВО: Полето за бързо търсене е точно тук
                 ft.Text("Подреди по:", color=TEXT_SECONDARY, size=13),
                 dd_sort,
                 btn_sort_dir
