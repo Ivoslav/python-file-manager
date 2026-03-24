@@ -1,5 +1,7 @@
 import flet as ft
 import os
+import platform
+import subprocess
 from datetime import datetime, time, timedelta
 
 from utils import MAX_UI_FILES, natural_sort_key, format_size
@@ -10,10 +12,10 @@ from operations import (
 )
 
 # --- ПРЕМИУМ ПАЛИТРА (Minimalist Dark) ---
-BG_MAIN = "#0B0C10"         # Още по-дълбоко черно за фона
-BG_SIDEBAR = "#12141A"      # Много меко тъмно сиво за панелите
-BG_CONTAINER = "#181A21"    # Фон за списъка с резултати
-BG_HOVER = "#232630"        # Цвят, когато минеш с мишката върху файл
+BG_MAIN = "#0B0C10"         
+BG_SIDEBAR = "#12141A"      
+BG_CONTAINER = "#181A21"    
+BG_HOVER = "#232630"        
 BORDER_COLOR = "#252833"    
 TEXT_PRIMARY = "#F8FAFC"    
 TEXT_SECONDARY = "#94A3B8"  
@@ -24,7 +26,7 @@ BTN_EXPORT = "#64748B"
 BTN_DELETE = "#EF4444"      
 
 def main(page: ft.Page):
-    page.title = "Smart Manager v17.0 (Minimal UI)"
+    page.title = "Smart Manager v18.0 (Ultimate UX)"
     page.theme_mode = ft.ThemeMode.DARK  
     page.bgcolor = BG_MAIN
     
@@ -49,7 +51,7 @@ def main(page: ft.Page):
     expanded_dirs = set()
 
     # ==============================================================
-    # 1. ГРАФИЧНИ ЕЛЕМЕНТИ (С ПО-МОДЕРЕН ДИЗАЙН)
+    # 1. ГРАФИЧНИ ЕЛЕМЕНТИ
     # ==============================================================
     lbl_folder = ft.Text("Текуща директория (.)", color=TEXT_SECONDARY, italic=True, size=12)
     btn_select_folder = ft.ElevatedButton(
@@ -63,7 +65,7 @@ def main(page: ft.Page):
     
     btn_scan = ft.ElevatedButton(
         "🔍 Сканирай", width=260, height=50, bgcolor=ACCENT_BLUE, color=ft.colors.WHITE,
-        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10)) # По-модерни заоблени бутони
+        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10)) 
     )
     progress_ring = ft.ProgressRing(width=24, height=24, stroke_width=3, visible=False, color=ACCENT_BLUE)
 
@@ -74,11 +76,23 @@ def main(page: ft.Page):
     )
     btn_sort_dir = ft.IconButton(icon=ft.icons.ARROW_UPWARD, tooltip="Посока", icon_color=TEXT_SECONDARY, icon_size=18)
 
+    # --- НОВО: Приветстващ екран (Empty State) ---
+    empty_state = ft.Container(
+        content=ft.Column([
+            ft.Icon(ft.icons.FOLDER_SPECIAL_OUTLINED, size=70, color=BORDER_COLOR),
+            ft.Text("Няма сканирани файлове", size=18, color=TEXT_SECONDARY, weight="bold"),
+            ft.Text("Изберете директория от левия панел и натиснете 'Сканирай'", size=13, color=TEXT_SECONDARY)
+        ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+        alignment=ft.alignment.center,
+        expand=True
+    )
+
     results_list = ft.ListView(expand=True, spacing=5, auto_scroll=False)
+    results_list.controls = [empty_state] # Зареждаме празния екран при старт
+    
     results_container = ft.Container(content=results_list, expand=True, border=ft.border.all(1, BORDER_COLOR), bgcolor=BG_CONTAINER, padding=15, border_radius=12)
     lbl_summary = ft.Text("Готовност за сканиране...", color=TEXT_SECONDARY, size=13)
 
-    # Модерни бутони за масови операции
     btn_style = ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
     btn_copy = ft.ElevatedButton("📁 Копирай", disabled=True, color=ft.colors.WHITE, bgcolor=BTN_COPY, style=btn_style)
     btn_cut_bulk = ft.ElevatedButton("✂️ Изрежи", disabled=True, color=ft.colors.WHITE, bgcolor=BTN_CUT, style=btn_style)
@@ -98,6 +112,18 @@ def main(page: ft.Page):
     # ==============================================================
     # 2. ПОМОЩНИ ФУНКЦИИ И ЛОГИКА
     # ==============================================================
+    # --- НОВО: Функция за отваряне на файл в ОС ---
+    def open_system_file(filepath):
+        try:
+            if platform.system() == 'Windows':
+                os.startfile(filepath)
+            elif platform.system() == 'Darwin': # macOS
+                subprocess.call(('open', filepath))
+            else: # Linux
+                subprocess.call(('xdg-open', filepath))
+        except Exception as e:
+            show_snack(f"Грешка при отваряне: Не може да се стартира файла.", BTN_DELETE)
+
     def update_dynamic_buttons():
         sel_count = len(selected_files)
         is_multi_select = sel_count > 0
@@ -169,7 +195,7 @@ def main(page: ft.Page):
         tf_start.value = start.strftime("%d/%m/%Y")
         page.update()
 
-    # --- СВЪРЗВАНЕ НА ПИКЪРИ СЪС СЪБИТИЯ ---
+    # --- СВЪРЗВАНЕ НА ПИКЪРИ ---
     def on_scan_folder_selected(e: ft.FilePickerResultEvent):
         if e.path:
             target_folder[0] = e.path
@@ -303,7 +329,19 @@ def main(page: ft.Page):
 
     def create_file_row(file_name, full_path, size, f_date, is_sys):
         file_color = "#FCA5A5" if is_sys else TEXT_PRIMARY
-        icon = "⚙️" if is_sys else "📄"
+        
+        # --- НОВО: УМНИ ИКОНКИ (Smart File Icons) ---
+        ext = os.path.splitext(file_name)[1].lower()
+        if is_sys: icon = "⚙️"
+        elif ext in ['.jpg', '.jpeg', '.png', '.gif', '.svg']: icon = "🖼️"
+        elif ext in ['.mp4', '.avi', '.mkv', '.mov']: icon = "🎬"
+        elif ext in ['.mp3', '.wav', '.flac']: icon = "🎵"
+        elif ext in ['.pdf']: icon = "📕"
+        elif ext in ['.txt', '.doc', '.docx']: icon = "📝"
+        elif ext in ['.csv', '.xls', '.xlsx']: icon = "📊"
+        elif ext in ['.zip', '.rar', '.7z', '.tar']: icon = "📦"
+        elif ext in ['.py', '.js', '.html', '.css', '.json', '.cpp']: icon = "💻"
+        else: icon = "📄"
         
         row = ft.Row(spacing=10, alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
         date_str = f_date.strftime("%d/%m/%Y")
@@ -321,17 +359,17 @@ def main(page: ft.Page):
         icons_group = ft.Row(spacing=0, visible=False)
         active_icon_rows.append(icons_group) 
         
-        # --- HOVER МАГИЯТА: Осветяваме целия ред ---
         def on_hover(e):
             if len(selected_files) == 0:  
                 icons_group.visible = (e.data == "true")
-            # Сменяме цвета на фона на реда при посочване
             row_container.bgcolor = BG_HOVER if e.data == "true" else ft.colors.TRANSPARENT
             row_container.update()
 
-        # Добавихме border_radius и padding, за да стои меко като хапче
         row_container = ft.Container(content=row, on_hover=on_hover, padding=ft.padding.only(left=5, right=5, top=2, bottom=2), border_radius=6, animate=ft.animation.Animation(150, "easeOut"))
 
+        # --- НОВО: Бутон за Отваряне (Open File) ---
+        btn_open = ft.IconButton(ft.icons.OPEN_IN_NEW, icon_size=15, width=26, height=26, padding=0, tooltip="Отвори файла", icon_color=TEXT_PRIMARY, 
+                                 on_click=lambda e: open_system_file(full_path))
         btn_c = ft.IconButton(ft.icons.COPY, icon_size=15, width=26, height=26, padding=0, tooltip="Копирай", icon_color=ACCENT_BLUE, 
                               on_click=lambda e: (single_action.update({"type": "copy", "path": full_path, "row": row_container}), single_action_picker.get_directory_path()))
         btn_cut = ft.IconButton(ft.icons.CUT, icon_size=15, width=26, height=26, padding=0, tooltip="Изрежи", icon_color=BTN_CUT, 
@@ -339,7 +377,8 @@ def main(page: ft.Page):
         btn_del = ft.IconButton(ft.icons.DELETE, icon_size=15, width=26, height=26, padding=0, tooltip="Изтрий", icon_color=BTN_DELETE, 
                                 on_click=lambda e: prompt_single_delete(full_path, row_container, is_sys))
         
-        icons_group.controls = [btn_c, btn_cut, btn_del]
+        # Добавихме btn_open най-отпред
+        icons_group.controls = [btn_open, btn_c, btn_cut, btn_del]
         row.controls = [cb, lbl_name, lbl_size, lbl_date, icons_group]
         
         return row_container
@@ -416,7 +455,12 @@ def main(page: ft.Page):
                 elements.append(create_file_row(file_name, full_path, size, f_date, is_sys))
             return elements
 
-        results_list.controls = build_ui_tree(global_root_node[0])
+        # Ако няма файлове, показваме празно съобщение, иначе рисуваме дървото
+        if len(matched_files) == 0:
+            results_list.controls = [empty_state]
+        else:
+            results_list.controls = build_ui_tree(global_root_node[0])
+            
         update_summary_text()
 
     def do_scan(e):
@@ -548,7 +592,7 @@ def main(page: ft.Page):
             ], alignment=ft.MainAxisAlignment.START),
             lbl_summary,
             results_container,
-            toolbar # НОВО: Плаващата лента долу
+            toolbar
         ])
     )
 
