@@ -9,20 +9,22 @@ from operations import (
     batch_copy, batch_cut, batch_delete, generate_export_report
 )
 
-BG_MAIN = "#0F1014"         
-BG_SIDEBAR = "#17181C"      
-BG_CONTAINER = "#1C1E26"    
-BORDER_COLOR = "#2E323F"    
-TEXT_PRIMARY = "#E2E8F0"    
-TEXT_SECONDARY = "#64748B"  
+# --- ПРЕМИУМ ПАЛИТРА (Minimalist Dark) ---
+BG_MAIN = "#0B0C10"         # Още по-дълбоко черно за фона
+BG_SIDEBAR = "#12141A"      # Много меко тъмно сиво за панелите
+BG_CONTAINER = "#181A21"    # Фон за списъка с резултати
+BG_HOVER = "#232630"        # Цвят, когато минеш с мишката върху файл
+BORDER_COLOR = "#252833"    
+TEXT_PRIMARY = "#F8FAFC"    
+TEXT_SECONDARY = "#94A3B8"  
 ACCENT_BLUE = "#3B82F6"     
-BTN_COPY = "#059669"        
-BTN_CUT = "#D97706"         
-BTN_EXPORT = "#475569"      
-BTN_DELETE = "#DC2626"      
+BTN_COPY = "#10B981"        
+BTN_CUT = "#F59E0B"         
+BTN_EXPORT = "#64748B"      
+BTN_DELETE = "#EF4444"      
 
 def main(page: ft.Page):
-    page.title = "Търсачка за Файлове"
+    page.title = "Smart Manager v17.0 (Minimal UI)"
     page.theme_mode = ft.ThemeMode.DARK  
     page.bgcolor = BG_MAIN
     
@@ -44,38 +46,44 @@ def main(page: ft.Page):
     limit_reached = [False]
     active_icon_rows = [] 
     single_action = {"type": None, "path": None, "row": None}
-    
-    # НОВО: Пазим списък с пътищата на всички ръчно отворени папки!
     expanded_dirs = set()
 
     # ==============================================================
-    # 1. СЪЗДАВАНЕ НА ВСИЧКИ ГРАФИЧНИ ЕЛЕМЕНТИ
+    # 1. ГРАФИЧНИ ЕЛЕМЕНТИ (С ПО-МОДЕРЕН ДИЗАЙН)
     # ==============================================================
-    lbl_folder = ft.Text("Избрана: Текуща (.)", color=TEXT_SECONDARY, italic=True, size=12)
-    btn_select_folder = ft.ElevatedButton("📂 Избери папка", color=TEXT_PRIMARY, bgcolor=BORDER_COLOR, width=260)
+    lbl_folder = ft.Text("Текуща директория (.)", color=TEXT_SECONDARY, italic=True, size=12)
+    btn_select_folder = ft.ElevatedButton(
+        "📂 Избери папка", color=TEXT_PRIMARY, bgcolor=BORDER_COLOR, width=260, height=45,
+        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
+    )
     
-    tf_start = ft.TextField(label="От дата (ДД/ММ/ГГГГ)", value="01/01/2024", width=260, border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, text_style=ft.TextStyle(color=TEXT_PRIMARY), label_style=ft.TextStyle(color=TEXT_SECONDARY))
-    tf_end = ft.TextField(label="До дата (ДД/ММ/ГГГГ)", value=datetime.now().strftime("%d/%m/%Y"), width=260, border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, text_style=ft.TextStyle(color=TEXT_PRIMARY), label_style=ft.TextStyle(color=TEXT_SECONDARY))
-    tf_ext = ft.TextField(label="Разширения (напр. txt, pdf)", hint_text="Оставете празно", width=260, border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, text_style=ft.TextStyle(color=TEXT_PRIMARY), label_style=ft.TextStyle(color=TEXT_SECONDARY))
+    tf_start = ft.TextField(label="От дата", value="01/01/2024", width=125, border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, text_size=13, content_padding=10)
+    tf_end = ft.TextField(label="До дата", value=datetime.now().strftime("%d/%m/%Y"), width=125, border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, text_size=13, content_padding=10)
+    tf_ext = ft.TextField(label="Разширения (txt, pdf)", hint_text="Всички", border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, text_size=13, content_padding=10)
     
-    btn_scan = ft.ElevatedButton("🔍 Сканирай Сега", width=260, height=45, bgcolor=ACCENT_BLUE, color=ft.colors.WHITE)
+    btn_scan = ft.ElevatedButton(
+        "🔍 Сканирай", width=260, height=50, bgcolor=ACCENT_BLUE, color=ft.colors.WHITE,
+        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10)) # По-модерни заоблени бутони
+    )
     progress_ring = ft.ProgressRing(width=24, height=24, stroke_width=3, visible=False, color=ACCENT_BLUE)
 
     dd_sort = ft.Dropdown(
         value="Име",
         options=[ft.dropdown.Option("Име"), ft.dropdown.Option("Размер"), ft.dropdown.Option("Дата"), ft.dropdown.Option("Тип")],
-        width=130, height=45, text_size=13, border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, text_style=ft.TextStyle(color=TEXT_PRIMARY)
+        width=120, height=40, text_size=13, border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, content_padding=10
     )
-    btn_sort_dir = ft.IconButton(icon=ft.icons.ARROW_UPWARD, tooltip="Посока", icon_color=TEXT_SECONDARY)
+    btn_sort_dir = ft.IconButton(icon=ft.icons.ARROW_UPWARD, tooltip="Посока", icon_color=TEXT_SECONDARY, icon_size=18)
 
     results_list = ft.ListView(expand=True, spacing=5, auto_scroll=False)
-    results_container = ft.Container(content=results_list, expand=True, border=ft.border.all(1, BORDER_COLOR), bgcolor=BG_CONTAINER, padding=15, border_radius=8)
-    lbl_summary = ft.Text("Готовност за сканиране...", color="#34D399")
+    results_container = ft.Container(content=results_list, expand=True, border=ft.border.all(1, BORDER_COLOR), bgcolor=BG_CONTAINER, padding=15, border_radius=12)
+    lbl_summary = ft.Text("Готовност за сканиране...", color=TEXT_SECONDARY, size=13)
 
-    btn_copy = ft.ElevatedButton("📁 Копирай Всички", disabled=True, color=ft.colors.WHITE, bgcolor=BTN_COPY)
-    btn_cut_bulk = ft.ElevatedButton("✂️ Изрежи Всички", disabled=True, color=ft.colors.WHITE, bgcolor=BTN_CUT)
-    btn_export = ft.ElevatedButton("📄 Експорт Всички", disabled=True, color=ft.colors.WHITE, bgcolor=BTN_EXPORT)
-    btn_delete = ft.ElevatedButton("🗑️ Изтрий Всички", disabled=True, color=ft.colors.WHITE, bgcolor=BTN_DELETE)
+    # Модерни бутони за масови операции
+    btn_style = ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
+    btn_copy = ft.ElevatedButton("📁 Копирай", disabled=True, color=ft.colors.WHITE, bgcolor=BTN_COPY, style=btn_style)
+    btn_cut_bulk = ft.ElevatedButton("✂️ Изрежи", disabled=True, color=ft.colors.WHITE, bgcolor=BTN_CUT, style=btn_style)
+    btn_export = ft.ElevatedButton("📄 Експорт", disabled=True, color=ft.colors.WHITE, bgcolor=BTN_EXPORT, style=btn_style)
+    btn_delete = ft.ElevatedButton("🗑️ Изтрий", disabled=True, color=ft.colors.WHITE, bgcolor=BTN_DELETE, style=btn_style)
 
     scan_picker = ft.FilePicker()
     copy_picker = ft.FilePicker()
@@ -106,7 +114,7 @@ def main(page: ft.Page):
             btn_delete.text = "🗑️ Изтрий Всички"
             
         for icon_row in active_icon_rows: 
-            icon_row.visible = False # Крием всички hover бутони при multi-select
+            icon_row.visible = False
             
         is_empty = len(matched_files) == 0
         btn_copy.disabled = is_empty
@@ -117,15 +125,14 @@ def main(page: ft.Page):
 
     def update_summary_text():
         total_size = sum(f_size for _, f_size, _, _ in matched_files)
-        lbl_summary.value = f"✅ Общо намерени: {len(matched_files)} файла (Размер: {format_size(total_size)})"
-        
+        lbl_summary.value = f"✅ Намерени: {len(matched_files)} файла | Размер: {format_size(total_size)}"
         if has_system_files[0]:
-            lbl_summary.value += " | ⚠️ Има системни файлове!"
-            lbl_summary.color = "#F59E0B" 
+            lbl_summary.value += " | ⚠️ Системни файлове!"
+            lbl_summary.color = BTN_CUT 
         else:
-            lbl_summary.color = "#34D399" 
+            lbl_summary.color = BTN_COPY 
             
-        if limit_reached[0]: lbl_summary.value += f" | ⚡ Показани първите {MAX_UI_FILES}."
+        if limit_reached[0]: lbl_summary.value += f" | ⚡ Лимит {MAX_UI_FILES}."
         update_dynamic_buttons()
 
     def remove_file_from_state(path, row_control=None):
@@ -149,7 +156,7 @@ def main(page: ft.Page):
         update_summary_text()
 
     def show_snack(text, color):
-        page.snack_bar = ft.SnackBar(ft.Text(text, color=ft.colors.WHITE), bgcolor=color)
+        page.snack_bar = ft.SnackBar(ft.Text(text, color=ft.colors.WHITE), bgcolor=color, behavior=ft.SnackBarBehavior.FLOATING)
         page.snack_bar.open = True
         page.update()
 
@@ -166,7 +173,8 @@ def main(page: ft.Page):
     def on_scan_folder_selected(e: ft.FilePickerResultEvent):
         if e.path:
             target_folder[0] = e.path
-            lbl_folder.value = f"Избрана:\n{e.path}"
+            lbl_folder.value = f"{e.path}"
+            lbl_folder.color = TEXT_PRIMARY
             page.update()
     scan_picker.on_result = on_scan_folder_selected
 
@@ -176,7 +184,7 @@ def main(page: ft.Page):
             count, err_count = batch_copy(files_to_process, e.path, target_folder[0])
             msg = f"Успешно копирани {count} файла."
             if err_count > 0: msg += f" (Грешки: {err_count})"
-            show_snack(msg, "#10B981" if err_count == 0 else "#F59E0B")
+            show_snack(msg, BTN_COPY if err_count == 0 else BTN_CUT)
     copy_picker.on_result = on_copy_folder_selected
 
     def on_cut_folder_selected(e: ft.FilePickerResultEvent):
@@ -186,7 +194,7 @@ def main(page: ft.Page):
             for f_path in success_files: remove_file_from_state(f_path, None) 
             msg = f"Успешно изрязани {count} файла."
             if err_count > 0: msg += f" Възникнаха {err_count} грешки!"
-            show_snack(msg, "#10B981" if err_count == 0 else "#F59E0B")
+            show_snack(msg, BTN_COPY if err_count == 0 else BTN_CUT)
             redraw_tree() 
             page.update()
     cut_bulk_picker.on_result = on_cut_folder_selected
@@ -195,8 +203,8 @@ def main(page: ft.Page):
         if e.path:
             try:
                 generate_export_report(e.path, matched_files, selected_files, target_folder[0])
-                show_snack("Списъкът е запазен успешно.", "#10B981")
-            except Exception as ex: show_snack(f"Грешка: {ex}", "#EF4444")
+                show_snack("Списъкът е запазен успешно.", BTN_COPY)
+            except Exception as ex: show_snack(f"Грешка: {ex}", BTN_DELETE)
     export_picker.on_result = on_export_report_selected
 
     def on_single_action_selected(e: ft.FilePickerResultEvent):
@@ -204,17 +212,16 @@ def main(page: ft.Page):
             try:
                 if single_action["type"] == "copy":
                     if copy_single_file(single_action["path"], e.path):
-                        show_snack(f"Копиран в: {e.path}", "#10B981")
-                    else: show_snack("Източникът и дестинацията съвпадат!", "#F59E0B")
+                        show_snack(f"Копиран в: {e.path}", BTN_COPY)
+                    else: show_snack("Източникът и дестинацията съвпадат!", BTN_CUT)
                 elif single_action["type"] == "cut":
                     if cut_single_file(single_action["path"], e.path):
-                        show_snack(f"Изрязан и преместен в: {e.path}", "#10B981")
+                        show_snack(f"Изрязан и преместен в: {e.path}", BTN_COPY)
                         remove_file_from_state(single_action["path"], single_action["row"])
-                    else: show_snack("Източникът и дестинацията съвпадат!", "#F59E0B")
-            except Exception as ex: show_snack(f"Грешка: {ex}", "#EF4444")
+                    else: show_snack("Източникът и дестинацията съвпадат!", BTN_CUT)
+            except Exception as ex: show_snack(f"Грешка: {ex}", BTN_DELETE)
     single_action_picker.on_result = on_single_action_selected
 
-    # НОВО: Защитен прозорец за Изрязване на системни файлове
     def prompt_single_cut(path, row_control, is_sys):
         if is_sys:
             def close_dlg(e):
@@ -227,12 +234,11 @@ def main(page: ft.Page):
                 page.update()
             
             dlg_sys_cut.title = ft.Text("🚨 Системен файл!", color="#F87171", weight=ft.FontWeight.BOLD)
-            dlg_sys_cut.content = ft.Text(f"Опитвате се да изрежете/преместите системен файл:\n{os.path.basename(path)}\n\nТова може да повреди операционната система. Сигурни ли сте?", color=TEXT_PRIMARY)
+            dlg_sys_cut.content = ft.Text(f"Опитвате се да преместите системен файл:\n{os.path.basename(path)}\n\nСигурни ли сте?", color=TEXT_PRIMARY)
             dlg_sys_cut.actions = [
                 ft.TextButton("Отказ", on_click=close_dlg, style=ft.ButtonStyle(color=TEXT_SECONDARY)),
-                ft.TextButton("Да, премести", on_click=exec_cut, style=ft.ButtonStyle(color="#FBBF24", bgcolor="#451a03"))
+                ft.TextButton("Да, премести", on_click=exec_cut, style=ft.ButtonStyle(color=BTN_CUT, bgcolor="#451a03"))
             ]
-            dlg_sys_cut.actions_alignment = ft.MainAxisAlignment.END
             dlg_sys_cut.open = True
             page.update()
         else:
@@ -247,9 +253,9 @@ def main(page: ft.Page):
             dlg_single_delete.open = False
             try:
                 if delete_single_file(path):
-                    show_snack("Файлът беше изтрит.", "#EF4444")
+                    show_snack("Файлът беше изтрит.", BTN_DELETE)
                     remove_file_from_state(path, row_control)
-            except Exception as ex: show_snack(f"Грешка: {ex}", "#EF4444")
+            except Exception as ex: show_snack(f"Грешка: {ex}", BTN_DELETE)
 
         dlg_single_delete.title = ft.Text("🚨 Системен файл!" if is_sys else "Потвърждение", color="#F87171" if is_sys else TEXT_PRIMARY, weight=ft.FontWeight.BOLD)
         content_text = f"Изтриване на:\n{os.path.basename(path)}?"
@@ -257,9 +263,8 @@ def main(page: ft.Page):
         dlg_single_delete.content = ft.Text(content_text, color=TEXT_PRIMARY)
         dlg_single_delete.actions = [
             ft.TextButton("Отказ", on_click=close_single_dlg, style=ft.ButtonStyle(color=TEXT_SECONDARY)),
-            ft.TextButton("Да, изтрий", on_click=execute_single_delete, style=ft.ButtonStyle(color="#EF4444", bgcolor="#450a0a"))
+            ft.TextButton("Да, изтрий", on_click=execute_single_delete, style=ft.ButtonStyle(color=BTN_DELETE, bgcolor="#450a0a"))
         ]
-        dlg_single_delete.actions_alignment = ft.MainAxisAlignment.END
         dlg_single_delete.open = True
         page.update()
 
@@ -275,7 +280,7 @@ def main(page: ft.Page):
             
             msg = f"Успешно изтрити {count} файла."
             if err_count > 0: msg += f" (Грешки: {err_count})"
-            show_snack(msg, "#EF4444" if err_count == 0 else "#F59E0B")
+            show_snack(msg, BTN_DELETE if err_count == 0 else BTN_CUT)
             redraw_tree() 
             page.update()
         
@@ -289,9 +294,8 @@ def main(page: ft.Page):
             content=ft.Text(f"Ще изтриете {target_count} файла!{' (СИСТЕМНИ ФАЙЛОВЕ ОТКРИТИ)' if sys_in_target else ''}", color=TEXT_PRIMARY),
             actions=[
                 ft.TextButton("Отказ", on_click=close_dlg, style=ft.ButtonStyle(color=TEXT_SECONDARY)), 
-                ft.TextButton(f"Да, изтрий", on_click=do_delete, style=ft.ButtonStyle(color="#EF4444", bgcolor="#450a0a"))
+                ft.TextButton(f"Да, изтрий {target_count}", on_click=do_delete, style=ft.ButtonStyle(color=BTN_DELETE, bgcolor="#450a0a"))
             ],
-            actions_alignment=ft.MainAxisAlignment.END,
         )
         page.dialog = dlg
         dlg.open = True
@@ -302,7 +306,7 @@ def main(page: ft.Page):
         icon = "⚙️" if is_sys else "📄"
         
         row = ft.Row(spacing=10, alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-        date_str = f_date.strftime("%d/%m/%Y %H:%M")
+        date_str = f_date.strftime("%d/%m/%Y")
         
         def on_checkbox_change(e):
             if e.control.value: selected_files.add(full_path)
@@ -310,29 +314,29 @@ def main(page: ft.Page):
             update_dynamic_buttons()
             
         cb = ft.Checkbox(value=full_path in selected_files, on_change=on_checkbox_change, fill_color=ACCENT_BLUE)
-        lbl_name = ft.Text(f"{icon} {file_name}", color=file_color, size=14, expand=True, tooltip=full_path, no_wrap=True)
-        lbl_size = ft.Text(format_size(size), color=TEXT_SECONDARY, size=12, width=80, text_align=ft.TextAlign.RIGHT)
-        lbl_date = ft.Text(date_str, color=TEXT_SECONDARY, size=12, width=130, text_align=ft.TextAlign.RIGHT)
+        lbl_name = ft.Text(f"{icon} {file_name}", color=file_color, size=13, expand=True, tooltip=full_path, no_wrap=True)
+        lbl_size = ft.Text(format_size(size), color=TEXT_SECONDARY, size=12, width=70, text_align=ft.TextAlign.RIGHT)
+        lbl_date = ft.Text(date_str, color=TEXT_SECONDARY, size=12, width=80, text_align=ft.TextAlign.RIGHT)
         
-        # Бутоните са невидими по подразбиране
         icons_group = ft.Row(spacing=0, visible=False)
         active_icon_rows.append(icons_group) 
         
-        # НОВО: Hover логика
+        # --- HOVER МАГИЯТА: Осветяваме целия ред ---
         def on_hover(e):
-            if len(selected_files) == 0:  # Показваме само ако няма масово маркиране
+            if len(selected_files) == 0:  
                 icons_group.visible = (e.data == "true")
-                icons_group.update()
+            # Сменяме цвета на фона на реда при посочване
+            row_container.bgcolor = BG_HOVER if e.data == "true" else ft.colors.TRANSPARENT
+            row_container.update()
 
-        # Създаваме Контейнер, който улавя мишката (Hover)
-        row_container = ft.Container(content=row, on_hover=on_hover, padding=ft.padding.only(right=5), border_radius=5)
+        # Добавихме border_radius и padding, за да стои меко като хапче
+        row_container = ft.Container(content=row, on_hover=on_hover, padding=ft.padding.only(left=5, right=5, top=2, bottom=2), border_radius=6, animate=ft.animation.Animation(150, "easeOut"))
 
-        btn_c = ft.IconButton(ft.icons.COPY, icon_size=16, width=28, height=28, padding=0, tooltip="Копирай", icon_color="#60A5FA", 
+        btn_c = ft.IconButton(ft.icons.COPY, icon_size=15, width=26, height=26, padding=0, tooltip="Копирай", icon_color=ACCENT_BLUE, 
                               on_click=lambda e: (single_action.update({"type": "copy", "path": full_path, "row": row_container}), single_action_picker.get_directory_path()))
-        # Вързахме бутона за Изрязване към новата защита!
-        btn_cut = ft.IconButton(ft.icons.CUT, icon_size=16, width=28, height=28, padding=0, tooltip="Изрежи", icon_color="#FBBF24", 
+        btn_cut = ft.IconButton(ft.icons.CUT, icon_size=15, width=26, height=26, padding=0, tooltip="Изрежи", icon_color=BTN_CUT, 
                                 on_click=lambda e: prompt_single_cut(full_path, row_container, is_sys))
-        btn_del = ft.IconButton(ft.icons.DELETE, icon_size=16, width=28, height=28, padding=0, tooltip="Изтрий", icon_color="#F87171", 
+        btn_del = ft.IconButton(ft.icons.DELETE, icon_size=15, width=26, height=26, padding=0, tooltip="Изтрий", icon_color=BTN_DELETE, 
                                 on_click=lambda e: prompt_single_delete(full_path, row_container, is_sys))
         
         icons_group.controls = [btn_c, btn_cut, btn_del]
@@ -354,7 +358,6 @@ def main(page: ft.Page):
             elif dd_sort.value == "Тип": files_list.sort(key=lambda x: (os.path.splitext(x[0])[1].lower(), natural_sort_key(x[0])), reverse=rev)
             else: files_list.sort(key=lambda x: natural_sort_key(x[0]), reverse=rev)
 
-        # НОВО: Предаваме current_path, за да помним уникалното ID на всяка папка
         def build_ui_tree(node, current_path=target_folder[0]):
             elements = []
             sorted_dirs = sorted(node.children.keys(), key=natural_sort_key, reverse=(not sort_asc[0]))
@@ -367,7 +370,7 @@ def main(page: ft.Page):
                 child_ui_elements = build_ui_tree(child_node, child_path)
                 
                 if not child_ui_elements:
-                    child_ui_elements.append(ft.Text(" (Празна папка)", color=TEXT_SECONDARY, italic=True, size=12))
+                    child_ui_elements.append(ft.Text(" (Празна)", color=TEXT_SECONDARY, italic=True, size=11))
                 
                 def get_all_files(n):
                     res = [f[1] for f in n.files]
@@ -386,11 +389,8 @@ def main(page: ft.Page):
                     redraw_tree() 
                     
                 folder_cb = ft.Checkbox(value=all_selected, on_change=on_folder_cb_change, fill_color=ACCENT_BLUE) if paths_in_folder else None
-                
-                # НОВО: Проверяваме дали папката присъства в глобалната памет (expanded_dirs)
                 is_expanded = child_path in expanded_dirs
                 
-                # НОВО: Функция, която обновява паметта при отваряне/затваряне на папката
                 def make_toggle(cp):
                     def toggle(expanded):
                         if expanded: expanded_dirs.add(cp)
@@ -402,14 +402,14 @@ def main(page: ft.Page):
                     child_ui_elements, 
                     auto_expand=is_expanded, 
                     folder_checkbox=folder_cb,
-                    on_toggle_expand=make_toggle(child_path) # Пращаме callback-а
+                    on_toggle_expand=make_toggle(child_path) 
                 ))
                     
             sort_files(node.files)
             for file_name, full_path, size, f_date, is_sys in node.files:
                 if ui_count[0] >= MAX_UI_FILES:
                     if not limit_reached[0]:
-                        elements.append(ft.Text(f"⚠️ ... и още {len(matched_files) - MAX_UI_FILES} скрити.", color="#F59E0B", italic=True))
+                        elements.append(ft.Text(f"⚠️ Още {len(matched_files) - MAX_UI_FILES} скрити файла.", color="#F59E0B", italic=True, size=12))
                         limit_reached[0] = True
                     break
                 ui_count[0] += 1
@@ -425,7 +425,7 @@ def main(page: ft.Page):
             start_date_obj = datetime.strptime(tf_start.value, date_format)
             end_date_obj = datetime.strptime(tf_end.value, date_format)
         except ValueError:
-            show_snack("Грешка: Невалиден формат на датата!", "#EF4444")
+            show_snack("Грешка: Невалиден формат на датата!", BTN_DELETE)
             return
 
         start_date = datetime.combine(start_date_obj, time.min)
@@ -435,12 +435,11 @@ def main(page: ft.Page):
 
         matched_files.clear()
         selected_files.clear() 
-        expanded_dirs.clear() # Изчистваме паметта на папките при ново сканиране
+        expanded_dirs.clear() 
         
         btn_scan.disabled = True
         progress_ring.visible = True
-        lbl_summary.value = f"Сканиране на: {target_folder[0]}... Моля изчакайте."
-        lbl_summary.color = "#34D399"
+        lbl_summary.value = f"Сканиране на: {target_folder[0]}..."
         page.update()
 
         root_node, files, _, has_sys = scan_directory(target_folder[0], start_date, end_date, valid_exts)
@@ -450,7 +449,6 @@ def main(page: ft.Page):
         global_root_node[0] = root_node
         auto_expand_all[0] = len(matched_files) < 30
         
-        # Ако резултатите са малко, принудително записваме всички папки в паметта като "отворени"
         if auto_expand_all[0]:
             def pop_expanded(n, p):
                 for c_name, c_node in n.children.items():
@@ -486,10 +484,34 @@ def main(page: ft.Page):
 
     quick_dates_row = ft.Row([
         ft.TextButton("Днес", on_click=lambda _: set_quick_date(0), style=ft.ButtonStyle(color=ACCENT_BLUE)),
-        ft.TextButton("Последни 7", on_click=lambda _: set_quick_date(7), style=ft.ButtonStyle(color=ACCENT_BLUE)),
-        ft.TextButton("Този месец", on_click=lambda _: set_quick_date(0, month_start=True), style=ft.ButtonStyle(color=ACCENT_BLUE)),
-        ft.TextButton("Тази година", on_click=lambda _: set_quick_date(0, year_start=True), style=ft.ButtonStyle(color=ACCENT_BLUE)),
+        ft.TextButton("7 дни", on_click=lambda _: set_quick_date(7), style=ft.ButtonStyle(color=ACCENT_BLUE)),
+        ft.TextButton("Месец", on_click=lambda _: set_quick_date(0, month_start=True), style=ft.ButtonStyle(color=ACCENT_BLUE)),
+        ft.TextButton("Година", on_click=lambda _: set_quick_date(0, year_start=True), style=ft.ButtonStyle(color=ACCENT_BLUE)),
     ], wrap=True, width=260, spacing=0)
+
+    # --- СКРИТИ ФИЛТРИ (ExpansionTile) ---
+    advanced_filters = ft.ExpansionTile(
+        title=ft.Text("Допълнителни филтри", color=TEXT_PRIMARY, size=13, weight="bold"),
+        icon_color=ACCENT_BLUE,
+        collapsed_text_color=TEXT_SECONDARY,
+        controls_padding=ft.padding.only(left=10, right=10, bottom=10),
+        controls=[
+            quick_dates_row,
+            ft.Row([tf_start, tf_end], spacing=10),
+            ft.Container(height=10),
+            tf_ext,
+        ]
+    )
+
+    # --- ПЛАВАЩА ЛЕНТА (Toolbar) ---
+    toolbar = ft.Container(
+        content=ft.Row([btn_copy, btn_cut_bulk, btn_export, btn_delete], alignment=ft.MainAxisAlignment.CENTER, spacing=15),
+        bgcolor=BG_SIDEBAR,
+        padding=10,
+        border_radius=12,
+        border=ft.border.all(1, BORDER_COLOR),
+        margin=ft.padding.only(top=10)
+    )
 
     # ==============================================================
     # 4. РЕДЕНЕ НА ЕКРАНА (UI LAYOUT)
@@ -498,21 +520,15 @@ def main(page: ft.Page):
         width=300, 
         padding=25,
         bgcolor=BG_SIDEBAR,
+        border=ft.border.only(right=ft.border.BorderSide(1, BORDER_COLOR)),
         content=ft.Column([
-            ft.Text("Smart Manager", size=26, weight=ft.FontWeight.BOLD, color=ACCENT_BLUE),
+            ft.Row([ft.Icon(ft.icons.ROCKET_LAUNCH, color=ACCENT_BLUE), ft.Text("Smart Manager", size=22, weight="bold", color=TEXT_PRIMARY)]),
             ft.Divider(color=BORDER_COLOR, height=30),
-            ft.Text("ДИРЕКТОРИЯ", size=11, weight="bold", color=TEXT_SECONDARY),
             btn_select_folder,
+            ft.Container(height=5),
             lbl_folder,
             ft.Divider(color=BORDER_COLOR, height=30),
-            ft.Text("ВРЕМЕВИ ФИЛТЪР", size=11, weight="bold", color=TEXT_SECONDARY),
-            quick_dates_row,
-            ft.Container(height=5),
-            tf_start,
-            tf_end,
-            ft.Divider(color=BORDER_COLOR, height=30),
-            ft.Text("ФИЛТРИ", size=11, weight="bold", color=TEXT_SECONDARY),
-            tf_ext,
+            advanced_filters,
             ft.Divider(color=ft.colors.TRANSPARENT, height=15),
             btn_scan,
             ft.Row([progress_ring], alignment=ft.MainAxisAlignment.CENTER)
@@ -524,16 +540,15 @@ def main(page: ft.Page):
         padding=ft.padding.only(left=25, top=20, right=25, bottom=20),
         content=ft.Column([
             ft.Row([
-                ft.Text("Резултати", size=24, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
+                ft.Text("Резултати от сканирането", size=22, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
                 ft.Container(expand=True), 
-                ft.Text("Сортиране:", color=TEXT_SECONDARY, size=13),
+                ft.Text("Подреди по:", color=TEXT_SECONDARY, size=13),
                 dd_sort,
                 btn_sort_dir
             ], alignment=ft.MainAxisAlignment.START),
             lbl_summary,
             results_container,
-            ft.Container(height=5),
-            ft.Row([btn_copy, btn_cut_bulk, btn_export, btn_delete], wrap=True)
+            toolbar # НОВО: Плаващата лента долу
         ])
     )
 
