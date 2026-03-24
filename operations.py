@@ -85,7 +85,8 @@ def cut_single_file(src_path, dest_folder):
 
 def delete_single_file(src_path):
     try:
-        os.remove(clean_path(src_path))
+        abs_path = os.path.normpath(os.path.abspath(src_path))
+        os.remove(abs_path)
         logging.info(f"Успешно изтрит файл: {src_path}")
         return True
     except Exception as e:
