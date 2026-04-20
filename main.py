@@ -11,7 +11,6 @@ from operations import (
     batch_copy, batch_cut, batch_delete, generate_export_report
 )
 
-# --- ПРЕМИУМ ПАЛИТРА (Ultra Minimalist Dark) ---
 BG_MAIN = "#0B0C10"         
 BG_SIDEBAR = "#12141A"      
 BG_CONTAINER = "#181A21"    
@@ -36,7 +35,6 @@ def main(page: ft.Page):
     page.padding = 0 
     page.update()
 
-    # --- СЪСТОЯНИЯ ---
     matched_files = [] 
     selected_files = set() 
     target_folder = ["."] 
