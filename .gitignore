@@ -1,18 +1,15 @@
-# Среда и кеш
+# Python files
 __pycache__/
-*.py[cod]
-.venv/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
 venv/
+env/
 
-# PyInstaller и компилация
-build/
-dist/
-*.spec
-
-# Лог файлове и репорти
-*.log
-Search_Report.txt
-
-# Операционна система
+# Flet / OS specific
+.flet/
 .DS_Store
-Thumbs.db
+Search_Report.txt
+Test_Playground/

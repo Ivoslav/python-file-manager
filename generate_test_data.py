@@ -11,6 +11,8 @@ NUM_MAIN_FOLDERS = 5               # Брой главни папки
 MAX_DEPTH = 3                      # Колко нива навътре да влизат подпапките
 FILES_PER_FOLDER = range(0, 15)    # Между 0 и 15 файла във всяка папка (ще генерира и празни папки!)
 FILE_SIZES_KB = range(0, 5120)     # Размер на файловете: от 0 KB (празни) до 5 MB
+
+# Разширения (включили сме и системни, за да тестваме System Shield-а!)
 EXTENSIONS = ['.txt', '.pdf', '.docx', '.jpg', '.csv', '.log', '.dll', '.sys']
 
 # Дати: От преди 3 години до днес
@@ -20,12 +22,16 @@ start_ts = START_DATE.timestamp()
 end_ts = END_DATE.timestamp()
 
 def generate_random_date():
+    """Генерира произволен Timestamp в зададения период"""
     return start_ts + random.random() * (end_ts - start_ts)
 
 def create_random_file(folder_path):
+    """Създава 1 файл с произволно име, разширение, размер и дата"""
     ext = random.choice(EXTENSIONS)
     file_name = f"mock_file_{random.randint(1000, 9999)}{ext}"
     full_path = os.path.join(folder_path, file_name)
+    
+    # 1. Генерираме произволен размер (пишем случайни байтове)
     size_kb = random.choice(FILE_SIZES_KB)
     try:
         with open(full_path, 'wb') as f:
@@ -35,19 +41,24 @@ def create_random_file(folder_path):
         print(f"Грешка при създаване на файл: {e}")
         return
 
+    # 2. Манипулираме датата на създаване и модифициране (МАГИЯТА!)
     random_time = generate_random_date()
     os.utime(full_path, (random_time, random_time))
 
 def build_tree(current_path, current_depth):
+    """Рекурсивно строи папки и ги пълни с файлове"""
     os.makedirs(current_path, exist_ok=True)
     
+    # Пълним текущата папка с файлове
     num_files = random.choice(FILES_PER_FOLDER)
     for _ in range(num_files):
         create_random_file(current_path)
         
+    # Сменяме датата и на самата папка!
     folder_time = generate_random_date()
     os.utime(current_path, (folder_time, folder_time))
     
+    # Решаваме дали да създадем подпапка (ако не сме стигнали дъното)
     if current_depth < MAX_DEPTH:
         num_subfolders = random.randint(0, 3)
         for i in range(num_subfolders):
@@ -57,9 +68,11 @@ def build_tree(current_path, current_depth):
 if __name__ == "__main__":
     print(f"🚀 Започва генериране на тестови данни в папка: {TARGET_DIR}...")
     
+    # Създаваме главната папка, ако я няма
     base_path = os.path.abspath(TARGET_DIR)
     os.makedirs(base_path, exist_ok=True)
     
+    # Генерираме дървото
     for i in range(NUM_MAIN_FOLDERS):
         main_folder_path = os.path.join(base_path, f"Project_Folder_{i}")
         build_tree(main_folder_path, 1)
