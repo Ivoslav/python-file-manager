@@ -6,6 +6,7 @@ __pycache__/
 
 # Virtual Environment
 venv/
+Test_Playground/
 env/
 
 # Flet / OS specific
