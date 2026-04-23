@@ -1,3 +1,9 @@
+"""
+Модул: main.py
+Описание: Входна точка (Entry Point) на приложението и главен контролер на потребителския интерфейс (GUI).
+Реализира архитектурния модел View-Controller, като свързва графичните компоненти на Flet с 
+бизнес логиката за манипулация на файловата система.
+"""
 import flet as ft
 import os
 import platform
@@ -11,7 +17,9 @@ from operations import (
     batch_copy, batch_cut, batch_delete, generate_export_report
 )
 
-# --- ПРЕМИУМ ПАЛИТРА (Ultra Minimalist Dark) ---
+# ==============================================================
+# КОНФИГУРАЦИЯ НА ЦВЕТОВАТА ПАЛИТРА (ТЪМНА ТЕМА)
+# ==============================================================
 BG_MAIN = "#0B0C10"         
 BG_SIDEBAR = "#12141A"      
 BG_CONTAINER = "#181A21"    
@@ -27,6 +35,12 @@ BTN_EXPORT = "#64748B"
 BTN_DELETE = "#EF4444"      
 
 def main(page: ft.Page):
+    """
+    Инициализира основния жизнен цикъл на приложението и конфигурира визуалния прозорец.
+    
+    Параметри:
+        page (ft.Page): Основният обект на страницата, предоставен от рамката Flet.
+    """
     page.title = "Smart Manager v20.0 (Live Search)"
     page.theme_mode = ft.ThemeMode.DARK  
     page.bgcolor = BG_MAIN
@@ -36,7 +50,9 @@ def main(page: ft.Page):
     page.padding = 0 
     page.update()
 
-    # --- СЪСТОЯНИЯ ---
+    # ==============================================================
+    # ГЛОБАЛНИ СЪСТОЯНИЯ НА КОНТРОЛЕРА (STATE MANAGEMENT)
+    # ==============================================================
     matched_files = [] 
     selected_files = set() 
     target_folder = ["."] 
@@ -52,7 +68,7 @@ def main(page: ft.Page):
     expanded_dirs = set()
 
     # ==============================================================
-    # 1. ГРАФИЧНИ ЕЛЕМЕНТИ
+    # 1. ИНИЦИАЛИЗАЦИЯ НА ГРАФИЧНИТЕ ЕЛЕМЕНТИ (UI COMPONENTS)
     # ==============================================================
     lbl_folder = ft.Text("Текуща директория (.)", color=TEXT_SECONDARY, italic=True, size=12)
     btn_select_folder = ft.ElevatedButton(
@@ -70,14 +86,14 @@ def main(page: ft.Page):
     )
     progress_ring = ft.ProgressRing(width=24, height=24, stroke_width=3, visible=False, color=ACCENT_BLUE)
 
-    # НОВО: Лента за бързо търсене (Live Search)
+    # Текстово поле за динамично филтриране в реално време
     tf_search = ft.TextField(
         hint_text="Търси файл...", 
         prefix_icon=ft.icons.SEARCH,
         width=200, height=40, text_size=13, 
         border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, 
         content_padding=10,
-        on_change=lambda _: redraw_tree() # Преначертава дървото при всяка буква
+        on_change=lambda _: redraw_tree() 
     )
 
     dd_sort = ft.Dropdown(
@@ -120,22 +136,24 @@ def main(page: ft.Page):
     page.overlay.extend([scan_picker, copy_picker, cut_bulk_picker, export_picker, single_action_picker, dlg_single_delete, dlg_sys_cut])
 
     # ==============================================================
-    # 2. ПОМОЩНИ ФУНКЦИИ И ЛОГИКА
+    # 2. ПОМОЩНИ ФУНКЦИИ И АСИНХРОННИ СЪБИТИЯ
     # ==============================================================
     def open_system_file(filepath):
+        """Интерфейс към операционната система за отваряне на файл със свързаното приложение по подразбиране."""
         try:
             if platform.system() == 'Windows': os.startfile(filepath)
             elif platform.system() == 'Darwin': subprocess.call(('open', filepath))
             else: subprocess.call(('xdg-open', filepath))
-        except Exception as e:
+        except Exception:
             show_snack("Грешка при отваряне: Не може да се стартира файла.", BTN_DELETE)
 
-    # НОВО: Функция за копиране в клипборда
     def copy_to_clipboard(filepath):
+        """Трансферира подадения пътен низ (string) в системния клипборд."""
         page.set_clipboard(filepath)
         show_snack(f"Копирано: {os.path.basename(filepath)}", BTN_COPY)
 
     def update_dynamic_buttons():
+        """Динамично актуализира състоянията и етикетите на бутоните за масови операции спрямо селекцията."""
         sel_count = len(selected_files)
         is_multi_select = sel_count > 0
         
@@ -160,6 +178,7 @@ def main(page: ft.Page):
         page.update()
 
     def update_summary_text():
+        """Изчислява и визуализира обобщена статистическа информация за сканираните файлови дескриптори."""
         total_size = sum(f_size for _, f_size, _, _ in matched_files)
         lbl_summary.value = f"✅ Намерени: {len(matched_files)} файла | Размер: {format_size(total_size)}"
         if has_system_files[0]:
@@ -172,6 +191,7 @@ def main(page: ft.Page):
         update_dynamic_buttons()
 
     def remove_file_from_state(path, row_control=None):
+        """Отстранява указания файл от вътрешното състояние (State) и потребителския интерфейс."""
         for i, item in enumerate(matched_files):
             if item[0] == path:
                 matched_files.pop(i)
@@ -192,11 +212,13 @@ def main(page: ft.Page):
         update_summary_text()
 
     def show_snack(text, color):
+        """Изобразява временно системно съобщение (Snackbar) за обратна връзка с потребителя."""
         page.snack_bar = ft.SnackBar(ft.Text(text, color=ft.colors.WHITE), bgcolor=color, behavior=ft.SnackBarBehavior.FLOATING)
         page.snack_bar.open = True
         page.update()
 
     def set_quick_date(days_back, month_start=False, year_start=False):
+        """Помощна функция за бърза конфигурация на времевите филтри чрез предварително дефинирани интервали."""
         now = datetime.now()
         tf_end.value = now.strftime("%d/%m/%Y")
         if month_start: start = now.replace(day=1)
@@ -205,7 +227,7 @@ def main(page: ft.Page):
         tf_start.value = start.strftime("%d/%m/%Y")
         page.update()
 
-    # --- СВЪРЗВАНЕ НА ПИКЪРИ ---
+    # --- СВЪРЗВАНЕ НА СИСТЕМНИТЕ ДИАЛОЗИ ---
     def on_scan_folder_selected(e: ft.FilePickerResultEvent):
         if e.path:
             target_folder[0] = e.path
@@ -259,6 +281,7 @@ def main(page: ft.Page):
     single_action_picker.on_result = on_single_action_selected
 
     def prompt_single_cut(path, row_control, is_sys):
+        """Инициализира диалог за потвърждение при единична операция по изрязване."""
         if is_sys:
             def close_dlg(e):
                 dlg_sys_cut.open = False
@@ -282,6 +305,7 @@ def main(page: ft.Page):
             single_action_picker.get_directory_path()
 
     def prompt_single_delete(path, row_control, is_sys):
+        """Инициализира диалог за потвърждение при деструктивни операции."""
         def close_single_dlg(e):
             dlg_single_delete.open = False
             page.update()
@@ -305,6 +329,7 @@ def main(page: ft.Page):
         page.update()
 
     def confirm_bulk_delete_dialog():
+        """Процедура за верификация и изпълнение на масово изтриване на обекти."""
         def close_dlg(e):
             dlg.open = False
             page.update()
@@ -338,6 +363,7 @@ def main(page: ft.Page):
         page.update()
 
     def create_file_row(file_name, full_path, size, f_date, is_sys):
+        """Инстанцира и връща графичен компонент, представящ единичен файлов дескриптор."""
         file_color = "#FCA5A5" if is_sys else TEXT_PRIMARY
         
         ext = os.path.splitext(file_name)[1].lower()
@@ -376,7 +402,6 @@ def main(page: ft.Page):
             tooltip="Маркирай"
         )
         
-        # НОВО: Правим името кликаемо, за да копираме пътя
         lbl_name = ft.Container(
             content=ft.Text(f"{icon} {file_name}", color=file_color, size=13, tooltip="Кликни за копиране на пътя", no_wrap=True),
             expand=True,
@@ -424,13 +449,13 @@ def main(page: ft.Page):
         return row_container
 
     def redraw_tree():
+        """Алгоритъм за динамично преначертаване на дървовидната структура при сортиране или филтриране."""
         if not global_root_node[0]: return
         results_list.controls.clear()
         active_icon_rows.clear() 
         ui_count[0] = 0
         limit_reached[0] = False
         
-        # Взимаме стойността от търсачката (Live Search)
         search_query = tf_search.value.lower().strip() if tf_search.value else ""
         
         def sort_files(files_list):
@@ -451,7 +476,6 @@ def main(page: ft.Page):
                 
                 child_ui_elements = build_ui_tree(child_node, child_path)
                 
-                # НОВО: Ако сме въвели търсене и папката няма съвпадащи файлове или подпапки, я крием!
                 if search_query and not child_ui_elements and search_query not in child_name.lower():
                     continue
                 
@@ -464,7 +488,7 @@ def main(page: ft.Page):
                     return res
                     
                 paths_in_folder = get_all_files(child_node)
-                file_count = len(paths_in_folder) # Взимаме бройката файлове
+                file_count = len(paths_in_folder)
                 all_selected = all(p in selected_files for p in paths_in_folder) if file_count > 0 else False
                 
                 def make_folder_toggle(paths, is_sel):
@@ -477,7 +501,6 @@ def main(page: ft.Page):
                         redraw_tree() 
                     return toggle
                 
-                # --- НОВО: Индикация за празни папки и брой файлове ---
                 if file_count > 0:
                     folder_cb = ft.IconButton(
                         icon=ft.icons.CHECK_CIRCLE if all_selected else ft.icons.CIRCLE_OUTLINED,
@@ -488,7 +511,6 @@ def main(page: ft.Page):
                     )
                     display_name = f"{child_name}  ({file_count})"
                 else:
-                    # Показваме тъмносива, "заключена" иконка за празните папки
                     folder_cb = ft.IconButton(
                         icon=ft.icons.REMOVE_CIRCLE_OUTLINE, 
                         icon_color="#252833", 
@@ -507,7 +529,7 @@ def main(page: ft.Page):
                     return toggle
 
                 elements.append(CollapsibleDirectory(
-                    display_name, # Подаваме новото умно име
+                    display_name,
                     child_ui_elements, 
                     auto_expand=is_expanded, 
                     folder_checkbox=folder_cb,
@@ -516,7 +538,6 @@ def main(page: ft.Page):
                     
             sort_files(node.files)
             for file_name, full_path, size, f_date, is_sys in node.files:
-                # НОВО: Филтриране на самите файлове спрямо търсачката
                 if search_query and search_query not in file_name.lower():
                     continue
 
@@ -533,7 +554,6 @@ def main(page: ft.Page):
             results_list.controls = [empty_state]
         else:
             rendered_tree = build_ui_tree(global_root_node[0])
-            # Ако при търсенето не е намерено нищо, показваме празен екран
             if not rendered_tree and search_query:
                 results_list.controls = [ft.Container(ft.Text(f'Няма намерени файлове за "{search_query}"', color=TEXT_SECONDARY, italic=True), padding=20)]
             else:
@@ -542,6 +562,7 @@ def main(page: ft.Page):
         update_summary_text()
 
     def do_scan(e):
+        """Интерпретира входните данни от интерфейса и стартира процеса по рекурсивно сканиране."""
         date_format = "%d/%m/%Y"
         try:
             start_date_obj = datetime.strptime(tf_start.value, date_format)
@@ -558,7 +579,7 @@ def main(page: ft.Page):
         matched_files.clear()
         selected_files.clear() 
         expanded_dirs.clear() 
-        tf_search.value = "" # Изчистваме търсачката при ново сканиране
+        tf_search.value = "" 
         
         btn_scan.disabled = True
         progress_ring.visible = True
@@ -587,7 +608,7 @@ def main(page: ft.Page):
         page.update()
 
     # ==============================================================
-    # 3. СВЪРЗВАНЕ НА БУТОНИТЕ
+    # 3. РУТИРАНЕ НА СЪБИТИЯ (EVENT BINDING)
     # ==============================================================
     btn_select_folder.on_click = lambda _: scan_picker.get_directory_path()
     btn_scan.on_click = do_scan
@@ -635,7 +656,7 @@ def main(page: ft.Page):
     )
 
     # ==============================================================
-    # 4. РЕДЕНЕ НА ЕКРАНА (UI LAYOUT)
+    # 4. ДЕКЛАРАТИВЕН ДИЗАЙН (UI LAYOUT)
     # ==============================================================
     left_panel = ft.Container(
         width=300, 
@@ -663,7 +684,7 @@ def main(page: ft.Page):
             ft.Row([
                 ft.Text("Резултати", size=22, weight=ft.FontWeight.W_600, color=TEXT_PRIMARY),
                 ft.Container(expand=True), 
-                tf_search, # НОВО: Полето за бързо търсене е точно тук
+                tf_search, 
                 ft.Text("Подреди по:", color=TEXT_SECONDARY, size=13),
                 dd_sort,
                 btn_sort_dir
@@ -678,4 +699,5 @@ def main(page: ft.Page):
         ft.Row([left_panel, right_panel], expand=True, spacing=0) 
     )
 
-ft.app(target=main)
+if __name__ == "__main__":
+    ft.app(target=main)
