@@ -34,6 +34,19 @@ BTN_CUT = "#F59E0B"
 BTN_EXPORT = "#64748B"      
 BTN_DELETE = "#EF4444"      
 
+def get_all_files_in_node(node):
+    """Рекурсивно извлича всички пълни пътища на файлове в даден възел и неговите подвъзли."""
+    files = []
+    # 1. Взимаме файловете от текущата папка
+    for f in node.files:
+        files.append(f[1]) # f[1] съдържа пълния път (full_path)
+        
+    # 2. Рекурсивно влизаме във всички подпапки
+    for child_name, child_node in node.children.items():
+        files.extend(get_all_files_in_node(child_node))
+        
+    return files
+
 def main(page: ft.Page):
     """
     Инициализира основния жизнен цикъл на приложението и конфигурира визуалния прозорец.
@@ -76,7 +89,7 @@ def main(page: ft.Page):
         style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
     )
     
-    tf_start = ft.TextField(label="От дата", value="01/01/2024", width=125, border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, text_size=13, content_padding=10)
+    tf_start = ft.TextField(label="От дата", value="01/01/2000", width=125, border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, text_size=13, content_padding=10)
     tf_end = ft.TextField(label="До дата", value=datetime.now().strftime("%d/%m/%Y"), width=125, border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, text_size=13, content_padding=10)
     tf_ext = ft.TextField(label="Разширения (txt, pdf)", hint_text="Всички", border_color=BORDER_COLOR, focused_border_color=ACCENT_BLUE, text_size=13, content_padding=10)
     
@@ -415,16 +428,21 @@ def main(page: ft.Page):
         active_icon_rows.append(icons_group) 
         
         def on_hover(e):
+            if not row_container.page: 
+                return
+                
             is_hover = e.data == "true"
             is_sel = full_path in selected_files
             if len(selected_files) == 0:  
                 icons_group.visible = is_hover
+            
             if is_sel:
                 row_container.bgcolor = BG_SELECTED 
                 btn_select.icon_color = ACCENT_BLUE
             else:
                 row_container.bgcolor = BG_HOVER if is_hover else ft.colors.TRANSPARENT
                 btn_select.icon_color = TEXT_SECONDARY if is_hover else BORDER_COLOR
+            
             row_container.update()
             btn_select.update()
 
@@ -560,6 +578,7 @@ def main(page: ft.Page):
                 results_list.controls = rendered_tree
             
         update_summary_text()
+        
 
     def do_scan(e):
         """Интерпретира входните данни от интерфейса и стартира процеса по рекурсивно сканиране."""

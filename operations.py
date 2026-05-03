@@ -2,6 +2,7 @@
 Модул: operations.py
 Описание: Реализира бизнес логиката на приложението, включително рекурсивно сканиране, 
 файлови операции и алгоритъма 'System Shield' за предпазване на операционната система.
+Всички файлови транзакции се архивират в системен журнал (app.log).
 """
 import os
 import shutil
@@ -20,20 +21,7 @@ logging.basicConfig(
 )
 
 def scan_directory(target_folder, start_date, end_date, valid_exts):
-    """
-    Извършва дълбоко рекурсивно сканиране на подадената директория.
-    Филтрира файловете по времеви период и разширение, като едновременно с това
-    проверява за наличие на системни файлове (System Shield).
-    
-    Параметри:
-        target_folder (str): Абсолютен път до целевата директория.
-        start_date (datetime): Начална дата на времевия прозорец.
-        end_date (datetime): Крайна дата на времевия прозорец.
-        valid_exts (list): Списък с валидни файлови разширения.
-        
-    Връща:
-        tuple: (root_node, matched_files, total_size_bytes, has_system_files)
-    """
+    # (Тук кодът си остава абсолютно същият, не логваме сканирането, за да не спамим лога с хиляди редове)
     matched_files = []
     has_system_files = False
     total_size_bytes = 0
@@ -62,7 +50,6 @@ def scan_directory(target_folder, start_date, end_date, valid_exts):
                     abs_path = os.path.abspath(full_path).lower()
                     _, ext = os.path.splitext(file)
                     
-                    # Логика на System Shield
                     is_sys = ext.lower() in SYSTEM_EXTS or any(abs_path.startswith(p) for p in SYSTEM_PATHS)
                     if is_sys: has_system_files = True
                     
@@ -85,7 +72,6 @@ def scan_directory(target_folder, start_date, end_date, valid_exts):
     return root_node, matched_files, total_size_bytes, has_system_files
 
 def copy_single_file(src_path, dest_folder):
-    """Копира единичен файл със защита от презапис (Same-path protection)."""
     try:
         src_path = os.path.normpath(os.path.abspath(src_path))
         dest_folder = os.path.normpath(os.path.abspath(dest_folder))
@@ -95,22 +81,24 @@ def copy_single_file(src_path, dest_folder):
             return False
             
         shutil.copy2(src_path, final_dest)
+        logging.info(f"Успешно копиран файл: {src_path} -> {final_dest}")
         return True
-    except Exception:
+    except Exception as e:
+        logging.error(f"Грешка при копиране на {src_path}: {e}")
         return False
 
 def cut_single_file(src_path, dest_folder):
-    """Премества единичен файл чрез последователно копиране и изтриване на оригинала."""
     if copy_single_file(src_path, dest_folder):
         try:
             os.remove(os.path.normpath(os.path.abspath(src_path)))
+            logging.info(f"Успешно изрязан файл: {src_path} -> {dest_folder}")
             return True
-        except Exception:
+        except Exception as e:
+            logging.error(f"Грешка при премахване на оригинала след изрязване {src_path}: {e}")
             return False
     return False
 
 def delete_single_file(src_path):
-    """Изтрива единичен файл и записва операцията в системния журнал (Audit Log)."""
     try:
         abs_path = os.path.normpath(os.path.abspath(src_path))
         os.remove(abs_path)
@@ -125,10 +113,10 @@ def delete_single_file(src_path):
 # ==============================================================
 
 def batch_copy(files_list, dest_folder, target_folder):
-    """Масово копиране със запазване на дървовидната йерархия (Relative paths)."""
     count, err_count = 0, 0
     target_folder = os.path.normpath(os.path.abspath(target_folder))
     dest_folder = os.path.normpath(os.path.abspath(dest_folder))
+    logging.info(f"--- СТАРТ НА МАСОВО КОПИРАНЕ ({len(files_list)} файла) към {dest_folder} ---")
 
     for f_path in files_list:
         try:
@@ -140,16 +128,20 @@ def batch_copy(files_list, dest_folder, target_folder):
             
             os.makedirs(os.path.dirname(final_dest), exist_ok=True)
             shutil.copy2(abs_f_path, final_dest)
+            logging.info(f"Копиран: {abs_f_path} -> {final_dest}")
             count += 1
-        except Exception:
+        except Exception as e:
+            logging.error(f"Грешка при копиране на {f_path}: {e}")
             err_count += 1
+            
+    logging.info(f"--- КРАЙ НА МАСОВО КОПИРАНЕ (Успешни: {count}, Грешки: {err_count}) ---")
     return count, err_count
 
 def batch_cut(files_list, dest_folder, target_folder):
-    """Масово изрязване на списък от файлове със запазване на структурата."""
     count, err_count, success_files = 0, 0, []
     target_folder = os.path.normpath(os.path.abspath(target_folder))
     dest_folder = os.path.normpath(os.path.abspath(dest_folder))
+    logging.info(f"--- СТАРТ НА МАСОВО ИЗРЯЗВАНЕ ({len(files_list)} файла) към {dest_folder} ---")
     
     for f_path in files_list:
         try:
@@ -162,25 +154,35 @@ def batch_cut(files_list, dest_folder, target_folder):
             os.makedirs(os.path.dirname(final_dest), exist_ok=True)
             shutil.copy2(abs_f_path, final_dest)
             os.remove(abs_f_path)
+            logging.info(f"Изрязан: {abs_f_path} -> {final_dest}")
             count += 1
             success_files.append(f_path)
-        except Exception: err_count += 1
+        except Exception as e:
+            logging.error(f"Грешка при изрязване на {f_path}: {e}")
+            err_count += 1
+            
+    logging.info(f"--- КРАЙ НА МАСОВО ИЗРЯЗВАНЕ (Успешни: {count}, Грешки: {err_count}) ---")
     return count, err_count, success_files
 
 def batch_delete(files_list):
-    """Масово изтриване на масив от файлови пътища."""
     count, err_count, success_files = 0, 0, []
+    logging.info(f"--- СТАРТ НА МАСОВО ИЗТРИВАНЕ ({len(files_list)} файла) ---")
+    
     for f_path in files_list:
         try:
             abs_path = os.path.normpath(os.path.abspath(f_path))
             os.remove(abs_path)
+            logging.info(f"Изтрит: {abs_path}")
             count += 1
             success_files.append(f_path)
-        except Exception: err_count += 1
+        except Exception as e:
+            logging.error(f"Грешка при изтриване на {f_path}: {e}")
+            err_count += 1
+            
+    logging.info(f"--- КРАЙ НА МАСОВО ИЗТРИВАНЕ (Успешни: {count}, Грешки: {err_count}) ---")
     return count, err_count, success_files
 
 def generate_export_report(file_path, matched_files, selected_files, target_folder):
-    """Генерира одитен лог (Audit Log) в текстов формат с метаданни за избраните файлове."""
     files_to_process = [f for f in matched_files if f[0] in selected_files] if selected_files else matched_files
     is_subset = len(selected_files) > 0
     target_str = "ИЗБРАНИ" if is_subset else "ВСИЧКИ"

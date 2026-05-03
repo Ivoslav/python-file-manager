@@ -1,8 +1,11 @@
 # Python files
+build/
+dist/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.spec
 
 # Virtual Environment
 venv/
@@ -14,3 +17,4 @@ env/
 .DS_Store
 Search_Report.txt
 Test_Playground/
+*.log
